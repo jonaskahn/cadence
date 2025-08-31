@@ -1,0 +1,6 @@
+[submodule "sdk"]
+	path = sdk
+	url = https://github.com/jonaskahn/cadence-sdk.git
+[submodule "plugins"]
+	path = plugins
+	url = https://github.com/jonaskahn/cadence-example-plugins.git

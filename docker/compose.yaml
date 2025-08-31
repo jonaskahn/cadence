@@ -1,0 +1,20 @@
+name: cadence
+services:
+  cadence:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - CADENCE_DEBUG=true
+      - CADENCE_API_HOST=0.0.0.0
+      - CADENCE_API_PORT=8000
+      - CADENCE_PLUGINS_DIR=["/usr/src/cadence/plugins"]
+    volumes:
+      - ../plugins/src/cadence_example_plugins:/usr/src/cadence/plugins
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8000/ | grep -q 'Cadence AI'"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

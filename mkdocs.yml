@@ -1,0 +1,118 @@
+site_name: Cadence 🤖 Multi-agents AI Framework
+site_description: A plugin-based multi-agent conversational AI framework built on FastAPI
+site_author: Jonas Kahn
+site_url: https://jonaskahn.github.io/cadence
+
+repo_name: jonaskahn/cadence
+repo_url: https://github.com/jonaskahn/cadence
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/toggle-switch
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/toggle-switch-off-outline
+        name: Switch to light mode
+  icon:
+    repo: fontawesome/brands/github
+    edit: material/pencil
+    view: material/eye
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/jonaskahn/cadence
+    - icon: fontawesome/brands/twitter
+      link: https://twitter.com/jonaskahn
+
+plugins:
+  - search
+  - mermaid2:
+      version: "10.4.0"
+      arguments:
+        theme: default
+        securityLevel: loose
+  - git-revision-date-localized:
+      enable_creation_date: true
+  - minify:
+      minify_html: true
+
+markdown_extensions:
+  - admonition
+  - codehilite
+  - footnotes
+  - meta
+  - attr_list
+  - md_in_html
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.magiclink
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.snippets:
+      check_paths: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+  - toc:
+      permalink: true
+      title: On this page
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Quick Start: getting-started/quick-start.md
+      - Notices & Tips: getting-started/notices.md
+  - Core Concepts:
+      - Architecture Overview: concepts/architecture.md
+      - LangGraph Architecture: concepts/langgraph-architecture.md
+      - Project Structure: concepts/project-structure.md
+      - Plugin System: concepts/plugin-system.md
+  - Plugin Development:
+      - Overview: plugins/overview.md
+      - Your First Plugin: plugins/first-plugin.md
+  - Deployment:
+      - Environment Configuration: deployment/environment.md
+      - Production Setup: deployment/production.md
+  - Contributing:
+      - Development Guidelines: contributing/development.md
+      - Code Style: contributing/code-style.md
+      - Testing: contributing/testing.md
