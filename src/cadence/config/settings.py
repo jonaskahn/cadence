@@ -66,7 +66,6 @@ class Settings(BaseSettings):
     # Conversation settings
     conversation_storage_backend: str = Field(default="memory", description="Conversation storage backend")
     max_agent_hops: int = Field(default=25, description="Maximum agent hops per conversation")
-    max_tool_hops: int = Field(default=50, description="Maximum tool calls per agent")
     graph_recursion_limit: int = Field(default=50, description="Maximum graph recursion depth")
 
     # Session settings

@@ -134,7 +134,6 @@ CADENCE_DEBUG=true
 
 # Advanced Configuration
 CADENCE_MAX_AGENT_HOPS=25
-CADENCE_MAX_TOOL_HOPS=50
 CADENCE_GRAPH_RECURSION_LIMIT=50
 
 # Session Management
@@ -212,7 +211,7 @@ print(response.json())
 
 ### Plugin Development
 
-Create custom agents and tools using the Cadence SDK:
+Create custom agents and tools using the Cadence SDK with enhanced routing capabilities:
 
 ```python
 from cadence_sdk import BaseAgent, BasePlugin, PluginMetadata, tool
@@ -226,7 +225,7 @@ class MyPlugin(BasePlugin):
             description="My custom AI agent",
             capabilities=["custom_task"],
             agent_type="specialized",
-            dependencies=["cadence_sdk>=1.0.1,<2.0.0"],
+            dependencies=["cadence_sdk>=1.0.2,<2.0.0"],
         )
 
     @staticmethod
@@ -244,11 +243,38 @@ class MyAgent(BaseAgent):
     def get_system_prompt(self) -> str:
         return "You are a helpful AI assistant."
 
+    @staticmethod
+    def should_continue(state: dict) -> str:
+        """Enhanced routing decision - decide whether to continue or return to coordinator.
+        
+        This is the REAL implementation from the Cadence SDK - it's much simpler than you might expect!
+        The method simply checks if the agent's response has tool calls and routes accordingly.
+        """
+        last_msg = state.get("messages", [])[-1] if state.get("messages") else None
+        if not last_msg:
+            return "back"
+
+        tool_calls = getattr(last_msg, "tool_calls", None)
+        return "continue" if tool_calls else "back"
+
 @tool
 def my_custom_tool(input_data: str) -> str:
     """A custom tool for specific operations."""
     return f"Processed: {input_data}"
 ```
+
+**Enhanced Features:**
+
+- **Intelligent Routing**: Agents automatically decide when to use tools or return to coordinator
+- **Fake Tool Calls**: Consistent routing flow even when agents answer directly
+- **No Circular Routing**: Eliminated infinite loops through proper edge configuration
+- **Better Debugging**: Clear routing decisions and comprehensive logging
+
+**Key Implementation Details:**
+
+- **`should_continue` is a static method**: Uses `@staticmethod` decorator
+- **Automatic fake tool calls**: The SDK automatically creates fake "back" tool calls when agents answer directly
+- **Consistent routing**: All responses go through the same flow regardless of whether tools are used
 
 ## 🐳 Docker Deployment
 

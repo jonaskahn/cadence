@@ -15,12 +15,75 @@ Cadence plugins are self-contained packages discovered via the SDK registry. Eac
 3. Agent & Model: `create_agent()`, `get_tools()`, `bind_model()`
 4. Graph Wiring: `agent.create_agent_node()` and `ToolNode(tools)` registered with edges
 
-## Routing
+## Enhanced Routing System
 
-The coordinator offers `goto_{plugin}` tools generated from plugin metadata plus a `finalize` tool. After agents act:
+The new conditional routing system provides intelligent agent decision-making:
 
-- `should_continue(state)` returns `continue` to call tools or `back` to return to coordinator
-- Hop limits: `max_agent_hops` and `max_tool_hops` enforce limits; a `suspend` node explains limits to users
+### Agent Decision Logic
+
+Agents now implement a `should_continue` method that determines routing:
+
+```python
+@staticmethod
+def should_continue(state: Dict[str, Any]) -> str:
+    """Decide whether to call tools or return to the coordinator."""
+    last_msg = state.get("messages", [])[-1] if state.get("messages") else None
+    if not last_msg:
+        return "back"
+
+    tool_calls = getattr(last_msg, "tool_calls", None)
+    return "continue" if tool_calls else "back"
+```
+
+**Routing Decisions:**
+
+- `"continue"`: Agent has tool calls, route to tools
+- `"back"`: Agent answered directly, return to coordinator
+
+### Fake Tool Call Implementation
+
+To ensure consistent routing flow, agents create fake tool calls when answering directly:
+
+```python
+if tool_calls:
+    logger.debug(f"Agent {self.metadata.name} generated {len(tool_calls)} tool calls.")
+else:
+    # Create fake "back" tool call for consistent routing
+    response.content = ""
+    response.tool_calls = [ToolCall(
+        id=str(uuid.uuid4()),
+        name="back",
+        args={}
+    )]
+```
+
+### Plugin Bundle Edge Configuration
+
+Plugin bundles now define their own routing logic:
+
+```python
+def get_graph_edges(self) -> Dict[str, Any]:
+    normalized_agent_name = str.lower(self.metadata.name).replace(" ", "_")
+    return {
+        "conditional_edges": {
+            f"{normalized_agent_name}_agent": {
+                "condition": self.agent.should_continue,
+                "mapping": {
+                    "continue": f"{normalized_agent_name}_tools",
+                    "back": "coordinator",
+                },
+            }
+        },
+        "direct_edges": [(f"{normalized_agent_name}_tools", "coordinator")],
+    }
+```
+
+**Key Benefits:**
+
+- **No Circular Routing**: Tools always route to coordinator, never back to agent
+- **Consistent Flow**: All agent responses follow the same routing path
+- **Better Debugging**: Clear routing decisions and edge creation logging
+- **Predictable Behavior**: Eliminates infinite loops and routing confusion
 
 ## Configuration
 

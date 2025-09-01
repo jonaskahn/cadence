@@ -94,7 +94,6 @@ CADENCE_PLUGINS_DIR=["/abs/path/one", "/abs/path/two"]
 | Variable                        | Default | Description                                                                  |
 |---------------------------------|---------|------------------------------------------------------------------------------|
 | `CADENCE_MAX_AGENT_HOPS`        | `25`    | Maximum agent switches before suspend/finalization                           |
-| `CADENCE_MAX_TOOL_HOPS`         | `50`    | Maximum tool calls per request before suspend/finalization                   |
 | `CADENCE_GRAPH_RECURSION_LIMIT` | `50`    | Maximum LangGraph steps per request (prevents graph recursion/infinite loop) |
 
 ### Conversation Storage Configuration
@@ -237,7 +236,6 @@ CADENCE_MAX_SESSION_HISTORY=50
 
 # Processing Configuration
 CADENCE_MAX_AGENT_HOPS=25
-CADENCE_MAX_TOOL_HOPS=50
 CADENCE_GRAPH_RECURSION_LIMIT=50
 
 # --- Azure OpenAI (alternative) ---
@@ -288,7 +286,6 @@ CADENCE_MAX_SESSION_HISTORY=100
 
 # Processing Configuration
 CADENCE_MAX_AGENT_HOPS=25
-CADENCE_MAX_TOOL_HOPS=50
 CADENCE_GRAPH_RECURSION_LIMIT=50
 
 # --- Azure OpenAI (alternative) ---
@@ -330,7 +327,6 @@ services:
       - CADENCE_PERSISTENCE_MEMORY_LAYER=redis
       - CADENCE_REDIS_URL=redis://redis:6379/0
       - CADENCE_MAX_AGENT_HOPS=25
-      - CADENCE_MAX_TOOL_HOPS=50
       - CADENCE_GRAPH_RECURSION_LIMIT=50
       # Azure OpenAI (alternative)
       # - CADENCE_DEFAULT_LLM_PROVIDER=azure-openai
@@ -454,7 +450,6 @@ data:
   CADENCE_API_PORT: "8000"
   CADENCE_SESSION_TIMEOUT: "3600"
   CADENCE_MAX_AGENT_HOPS: "25"
-  CADENCE_MAX_TOOL_HOPS: "50"
   CADENCE_GRAPH_RECURSION_LIMIT: "50"
   # Conversation Storage
   CADENCE_CONVERSATION_STORAGE_BACKEND: "postgresql"

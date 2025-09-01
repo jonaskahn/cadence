@@ -45,7 +45,7 @@ services:
       - CADENCE_REDIS_URL=redis://redis:6379/0
       - CADENCE_SESSION_TIMEOUT=3600
       - CADENCE_MAX_AGENT_HOPS=25
-      - CADENCE_MAX_TOOL_HOPS=50
+
     volumes:
       - ./plugins:/opt/cadence/plugins:ro
       - cadence-logs:/var/log/cadence
@@ -358,7 +358,7 @@ active_connections = Gauge('cadence_active_connections', 'Active connections')
 
 ```python
 # Redis caching configuration
-CADENCE_REDIS_URL = redis://localhost:6379/0
+CADENCE_REDIS_URL = redis: // localhost: 6379 / 0
 CADENCE_CACHE_TTL = 3600
 CADENCE_SESSION_CACHE_TTL = 7200
 ```

@@ -74,18 +74,15 @@ class SDKPluginBundle(Loggable):
 
         print(f"Plugin: {bundle.metadata.name} v{bundle.metadata.version}")
         print(f"Capabilities: {bundle.metadata.capabilities}")
-
-        nodes = bundle.get_graph_nodes()
-        edges = bundle.get_graph_edges()
         ```
     """
 
     def __init__(
-            self,
-            contract: BasePlugin,
-            agent,
-            bound_model,
-            tools: List[Tool],
+        self,
+        contract: BasePlugin,
+        agent,
+        bound_model,
+        tools: List[Tool],
     ):
         super().__init__()
         self.contract = contract
@@ -93,7 +90,14 @@ class SDKPluginBundle(Loggable):
         self.agent = agent
         self.bound_model = bound_model
         self.tools = tools
-        self.tool_node = ToolNode(tools)
+
+        @tool
+        def back() -> str:
+            """Return control back to the coordinator."""
+            return "back"
+
+        all_tools = tools + [back]
+        self.tool_node = ToolNode(all_tools)
         self.agent_node = agent.create_agent_node()
 
     def get_graph_nodes(self) -> Dict[str, Any]:
@@ -141,9 +145,14 @@ class SDKPluginBundle(Loggable):
             #       "mapping": {"continue": "math_agent_tools", "back": "coordinator"}
             #     }
             #   },
-            #   "direct_edges": [("math_agent_tools", "math_agent_agent")]
+            #   "direct_edges": [("math_agent_tools", "coordinator")]
             # }
             ```
+
+            Routing Flow:
+            1. Agent decides: "continue" → routes to tools
+            2. Agent decides: "back" → routes directly to coordinator
+            3. Tools always route to coordinator (prevents circular routing)
         """
         normalized_agent_name = str.lower(self.metadata.name).replace(" ", "_")
         return {
@@ -156,7 +165,7 @@ class SDKPluginBundle(Loggable):
                     },
                 }
             },
-            "direct_edges": [(f"{normalized_agent_name}_tools", f"{normalized_agent_name}_agent")],
+            "direct_edges": [(f"{normalized_agent_name}_tools", "coordinator")],
         }
 
 
@@ -237,19 +246,6 @@ class SDKPluginManager(Loggable):
             return [Path(plugins_dirs)]
         return [Path(dir_path) for dir_path in plugins_dirs]
 
-    def discover_plugin_directories(self) -> List[Path]:
-        """List immediate child plugin directories (for informational purposes)."""
-        plugins: List[Path] = []
-        for plugins_dir in self.plugins_dirs:
-            if plugins_dir.exists():
-                for plugin_path in plugins_dir.iterdir():
-                    if plugin_path.is_dir() and (plugin_path / "__init__.py").exists():
-                        plugins.append(plugin_path)
-        self.logger.info(
-            f"Discovered {len(plugins)} plugin directories across {len(self.plugins_dirs)} plugin directories"
-        )
-        return plugins
-
     def load_plugin_packages(self) -> None:
         """Load directory-based plugin packages using DirectoryPluginDiscovery."""
         directories = [str(p) for p in self.plugins_dirs]
@@ -274,10 +270,6 @@ class SDKPluginManager(Loggable):
         except Exception as e:
             self.logger.warning(f"Pip plugin discovery unavailable or failed: {e}")
             return 0
-
-    def _load_plugin_package(self, plugin_path: Path) -> None:
-        """Deprecated: loading handled by DirectoryPluginDiscovery."""
-        self.logger.debug(f"_load_plugin_package is deprecated; use DirectoryPluginDiscovery")
 
     def discover_and_load_plugins(self) -> None:
         """Discover plugins from pip and local directories, then create bundles.
@@ -423,10 +415,6 @@ class SDKPluginManager(Loggable):
         """List names of successfully loaded plugin bundles."""
         return list(self.plugin_bundles.keys())
 
-    def get_all_plugin_tools(self) -> Dict[str, List[Tool]]:
-        """Return all registered tools organized by plugin name."""
-        return {name: bundle.tools for name, bundle in self.plugin_bundles.items()}
-
     def get_plugin_routing_info(self) -> Dict[str, str]:
         """Return short routing descriptions for coordinator prompts."""
         return {
@@ -488,6 +476,7 @@ class SDKPluginManager(Loggable):
         control_tools: List[Tool] = []
 
         def _make_goto_tool(name: str, description: str) -> Tool:
+
             def _goto() -> str:
                 """Route control to an agent by name."""
                 return name
@@ -538,12 +527,6 @@ class SDKPluginManager(Loggable):
         self.perform_health_checks()
 
         self.logger.info(f"Plugin reload complete. Loaded {len(self.plugin_bundles)} plugins")
-
-    def _update_tool_hops(self, field: str, increment: int) -> None:
-        """Updates tool hops counter for the tool execution logger."""
-        # This method is called by the ToolExecutionLogger to update tool_hops
-        # The actual state update happens in the graph execution
-        self.logger.debug(f"Tool execution logger requested update: {field} += {increment}")
 
     def _clear_plugin_state(self):
         """Clear all plugin-related state."""

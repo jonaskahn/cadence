@@ -46,7 +46,7 @@ graph TB
     subgraph "Infrastructure Layer"
         Q[State Management] --> R[LLM Factory]
         S[Plugin Manager] --> T[Graph Builder]
-        U[ToolExecutionLogger] --> V[Hop Counting]
+        U[ToolExecutionLogger] --> V[Agent Hop Counting]
         W[Message Filtering] --> X[Safety Validation]
     end
 ```
@@ -86,7 +86,7 @@ graph LR
     
     A --> E[Entry Point]
     C --> D
-    D --> F[END]
+    D --> F[DONE]
 ```
 
 **Implementation:**
@@ -133,7 +133,7 @@ def _add_dynamic_plugin_nodes(self, graph: StateGraph) -> None:
 
 ### Phase 4: Routing Edge Establishment
 
-The routing network creates the decision tree that guides conversation flow:
+The routing network creates the decision tree that guides conversation flow. **This is where the new conditional routing system is implemented:**
 
 ```mermaid
 graph TB
@@ -141,7 +141,7 @@ graph TB
         A[coordinator] --> B{Decision Logic}
         B -->|continue| C[control_tools]
         B -->|suspend| D[suspend]
-        B -->|end| E[finalizer]
+        B -->|done| E[finalizer]
     end
     
     subgraph "Control Tools Routing"
@@ -152,17 +152,23 @@ graph TB
         F -->|finalize| E
     end
     
-    subgraph "Plugin Flow"
-        G --> K[math_tools]
-        H --> L[search_tools]
-        I --> M[info_tools]
-        K --> N[coordinator]
-        L --> N
+    subgraph "Plugin Flow with Conditional Routing"
+        G --> J{should_continue}
+        H --> K{should_continue}
+        I --> L{should_continue}
+        J -->|continue| M[math_tools]
+        J -->|back| N[coordinator]
+        K -->|continue| O[search_tools]
+        K -->|back| N
+        L -->|continue| P[info_tools]
+        L -->|back| N
         M --> N
+        O --> N
+        P --> N
     end
     
     D --> E
-    E --> O[END]
+    E --> Q[DONE]
 ```
 
 **Implementation:**
@@ -175,38 +181,26 @@ def _add_conditional_routing_edges(self, graph: StateGraph) -> None:
     self._add_plugin_routing_edges(graph)
 
 
-def _add_coordinator_routing_edges(self, graph: StateGraph) -> None:
-    """Adds conditional edges from coordinator to other nodes."""
-    graph.add_conditional_edges(
-        GraphNodeNames.COORDINATOR,
-        self._coordinator_routing_logic,
-        {
-            RoutingDecision.CONTINUE: GraphNodeNames.CONTROL_TOOLS,
-            RoutingDecision.END: GraphNodeNames.FINALIZER,
-            RoutingDecision.SUSPEND: GraphNodeNames.SUSPEND,
-        },
-    )
-
-
-def _add_control_tools_routing_edges(self, graph: StateGraph) -> None:
-    """Adds conditional edges from control tools to plugin agents and finalizer."""
-    route_mapping = {}
-
-    for plugin_bundle in self.plugin_manager.plugin_bundles.values():
-        route_mapping[plugin_bundle.metadata.name] = f"{plugin_bundle.metadata.name}_agent"
-
-    route_mapping[RoutingDecision.END] = GraphNodeNames.FINALIZER
-
-    graph.add_conditional_edges(GraphNodeNames.CONTROL_TOOLS, self._determine_plugin_route, route_mapping)
-
-
 def _add_plugin_routing_edges(self, graph: StateGraph) -> None:
-    """Adds edges from plugin agents back to coordinator."""
+    """Adds edges from plugin agents back to coordinator using bundle edge definitions."""
     for plugin_bundle in self.plugin_manager.plugin_bundles.values():
-        plugin_name = plugin_bundle.metadata.name
-
-        graph.add_edge(f"{plugin_name}_agent", f"{plugin_name}_tools")
-        graph.add_edge(f"{plugin_name}_tools", GraphNodeNames.COORDINATOR)
+        edges = plugin_bundle.get_graph_edges()
+        
+        self.logger.debug(f"Adding edges for plugin {plugin_bundle.metadata.name}: {edges}")
+        
+        # Add conditional edges for agent routing decisions
+        for node_name, edge_config in edges["conditional_edges"].items():
+            self.logger.debug(f"Adding conditional edge: {node_name} -> {edge_config['mapping']}")
+            graph.add_conditional_edges(
+                node_name,
+                edge_config["condition"],
+                edge_config["mapping"]
+            )
+        
+        # Add direct edges for tool execution flow
+        for from_node, to_node in edges["direct_edges"]:
+            self.logger.debug(f"Adding direct edge: {from_node} -> {to_node}")
+            graph.add_edge(from_node, to_node)
 ```
 
 ### Phase 5: Entry Point Configuration
@@ -265,427 +259,101 @@ def _build_conversation_graph(self) -> StateGraph:
 
 ## Decision Logic and Conditional Routing
 
-### Improved Routing Design
+### Enhanced Agent Decision Making
 
-The routing system has been designed to eliminate redundancy and improve clarity:
-
-- **Coordinator** makes all primary finalization decisions
-- **Control Tools** handle plugin routing and error case finalization
-- **Clear Separation** of routing responsibilities
-- **Error Handling** routes unknown results to finalizer
-- **Consistent Naming** all routing tools use `goto_` prefix (e.g., `goto_math_agent`, `goto_finalize`)
-
-This design follows the single responsibility principle while maintaining robust error handling and making the system
-more predictable and maintainable.
-
-### Enhanced Coordinator Node
-
-The coordinator node provides intelligent decision-making with comprehensive state analysis:
+The new system implements intelligent agent decision-making through the `should_continue` method:
 
 ```python
-def _coordinator_node(self, state: AgentState) -> AgentState:
-    """Execute main decision-making step that determines conversation routing."""
-    messages = state.get("messages", [])
-    plugin_descriptions = self._build_plugin_descriptions()
-    tool_options = self._build_tool_options()
+@staticmethod
+def should_continue(state: Dict[str, Any]) -> str:
+    """Decide whether to call tools or return to the coordinator."""
+    last_msg = state.get("messages", [])[-1] if state.get("messages") else None
+    if not last_msg:
+        return "back"
 
-    coordinator_prompt = ConversationPrompts.COORDINATOR_INSTRUCTIONS.format(
-        plugin_descriptions=plugin_descriptions, tool_options=tool_options
-    )
-
-    system_message = SystemMessage(content=coordinator_prompt)
-    safe_messages = self._filter_safe_messages(messages)
-
-    coordinator_response = self.coordinator_model.invoke([system_message] + safe_messages)
-
-    current_agent_hops = state.get("agent_hops", 0)
-    is_routing_to_agent = self._has_tool_calls({"messages": [coordinator_response]})
-
-    if is_routing_to_agent:
-        tool_calls = getattr(coordinator_response, "tool_calls", [])
-        if tool_calls:
-            first_tool_name = (
-                tool_calls[0].get("name") if isinstance(tool_calls[0], dict) else getattr(tool_calls[0], "name", "")
-            )
-            is_not_finalize_call = first_tool_name and first_tool_name != "goto_finalize"
-            if is_not_finalize_call:
-                current_agent_hops += 1
-
-    return self._create_state_update(coordinator_response, current_agent_hops, state)
+    tool_calls = getattr(last_msg, "tool_calls", None)
+    return "continue" if tool_calls else "back"
 ```
 
-### Coordinator Routing Logic
+**Key Logic:**
 
-The coordinator makes intelligent decisions based on conversation state:
+- If the agent's response has `tool_calls` → returns `"continue"` (go to tools)
+- If the agent's response has NO `tool_calls` → returns `"back"` (return to coordinator)
 
-```mermaid
-flowchart TD
-    A[Start] --> B{Check Hop Limits}
-    B -->|Exceeded| C[Route to Suspend]
-    B -->|Within Limits| D{Check Tool Calls}
-    D -->|Has Tool Calls| E[Route to Control Tools]
-    D -->|No Tool Calls| F[Route to Finalizer]
-    
-    C --> G[suspend]
-    E --> H[control_tools]
-    F --> I[finalizer]
-    
-    G --> I
-    H --> I
-    
-    subgraph "Enhanced Features"
-        J[Message Filtering] --> K[Safe Messages]
-        L[Tool Call Detection] --> M[Detailed Logging]
-        N[State Updates] --> O[Standardized Format]
-    end
-```
+### Fake Tool Call Implementation
 
-**Implementation:**
+To ensure consistent routing flow, agents now create fake tool calls when they answer directly:
 
 ```python
-def _coordinator_routing_logic(self, state: AgentState) -> str:
-    if self._is_hop_limit_reached(state):
-        self.logger.debug("Routing to SUSPEND due to hop limit reached")
-        return RoutingDecision.SUSPEND
-    elif self._has_tool_calls(state):
-        self.logger.debug("Routing to CONTINUE due to tool calls present")
-        return RoutingDecision.CONTINUE
+def agent_node(state):
+    """Agent node function for LangGraph integration."""
+    # ... get response from LLM ...
+    
+    tool_calls = getattr(response, "tool_calls", [])
+
+    if tool_calls:
+        logger.debug(f"Agent {self.metadata.name} generated {len(tool_calls)} tool calls.")
     else:
-        self.logger.debug("Routing to END - no tool calls and hop limit not reached")
-        return RoutingDecision.END
+        # If no tool calls, create a fake "back" tool call to return to coordinator
+        # This ensures the agent always routes through the proper flow
+        logger.debug(f"Agent {self.metadata.name} answered directly, creating fake 'back' tool call")
+        response.content = ""
+        response.tool_calls = [ToolCall(
+            id=str(uuid.uuid4()),
+            name="back",
+            args={}
+        )]
 ```
 
-### Enhanced Tool Call Detection
+### Plugin Bundle Edge Configuration
 
-The system provides robust tool call detection with detailed logging:
+The plugin bundles now define their own routing logic:
 
 ```python
-def _has_tool_calls(self, state: AgentState) -> bool:
-    """Check if last message contains tool calls that need processing."""
-    messages = state.get("messages", [])
-    if not messages:
-        self.logger.debug("No messages in state")
-        return False
-
-    last_message = messages[-1]
-    tool_calls = getattr(last_message, "tool_calls", None)
-    has_tool_calls = bool(tool_calls)
-
-    self.logger.debug(f"Last message type: {type(last_message).__name__}, has tool_calls: {has_tool_calls}")
-    if has_tool_calls:
-        self.logger.debug(f"Tool calls found: {len(tool_calls)} calls")
-        for i, tc in enumerate(tool_calls):
-            self.logger.debug(f"  Tool call {i}: {getattr(tc, 'name', 'unknown')}")
-
-    return has_tool_calls
+def get_graph_edges(self) -> Dict[str, Any]:
+    """Generate LangGraph edge definitions for orchestrator routing."""
+    normalized_agent_name = str.lower(self.metadata.name).replace(" ", "_")
+    return {
+        "conditional_edges": {
+            f"{normalized_agent_name}_agent": {
+                "condition": self.agent.should_continue,
+                "mapping": {
+                    "continue": f"{normalized_agent_name}_tools",
+                    "back": "coordinator",
+                },
+            }
+        },
+        "direct_edges": [(f"{normalized_agent_name}_tools", "coordinator")],
+    }
 ```
 
-This enhanced detection provides:
+**Key Changes:**
 
-- Detailed logging for debugging
-- Robust handling of different message types
-- Clear visibility into tool call processing
-- Better error diagnosis capabilities
+- **Conditional Edges**: Agent routing decisions based on `should_continue` method
+- **Direct Edges**: Tools always route to coordinator (prevents circular routing)
+- **No More Loops**: Eliminated the `tools → agent` edge that caused infinite loops
 
-### Hop Limit Management
+### Back Tool Integration
 
-The system prevents infinite loops through hop counting:
+Each plugin bundle includes a special "back" tool for routing:
 
-```mermaid
-graph LR
-    subgraph "Hop Counting"
-        A[agent_hops] --> B{Check Limits}
-        C[tool_hops] --> B
-        B -->|Exceeded| D[Route to Suspend]
-        B -->|Within Limits| E[Continue Processing]
-    end
+```python
+def __init__(self, contract: BasePlugin, agent, bound_model, tools: List[Tool]):
+    # ... other initialization ...
     
-    subgraph "State Tracking"
-        F[ToolExecutionLogger] --> G[Increment tool_hops]
-        H[Agent Switches] --> I[Increment agent_hops]
-        J[Message Filtering] --> K[Safe State Updates]
-    end
+    @tool
+    def back() -> str:
+        """Return control back to the coordinator."""
+        return "back"
     
-    subgraph "Enhanced Safety"
-        L[Incomplete Tool Calls] --> M[Filtered Out]
-        N[Validation Errors] --> O[Prevented]
-        P[State Consistency] --> Q[Maintained]
-    end
+    all_tools = tools + [back]
+    self.tool_node = ToolNode(all_tools)
+    self.agent_node = agent.create_agent_node()
 ```
-
-### Enhanced Suspend Node
-
-The suspend node provides graceful conversation termination when hop limits are exceeded:
-
-```python
-def _suspend_node(self, state: AgentState) -> AgentState:
-    """Handle graceful conversation termination when hop limits are exceeded."""
-    current_hops = state.get("agent_hops", 0)
-    max_hops = self.settings.max_agent_hops
-
-    suspension_message = SystemMessage(
-        content=ConversationPrompts.HOP_LIMIT_REACHED.format(current=current_hops, maximum=max_hops)
-    )
-
-    suspension_response = self._invoke_model_with_prompt(suspension_message, state["messages"])
-    return self._create_state_update(suspension_response, current_hops, state)
-```
-
-This ensures:
-
-- User-friendly explanations of system limits
-- Clear communication about what was accomplished
-- Helpful suggestions for continuing the conversation
-- No technical jargon in user-facing messages
-
-## Response Tone Control
-
-The Cadence system now supports dynamic response tone control, allowing users to specify how they want responses to be
-formatted and delivered.
-
-### ResponseTone Enum
-
-The system defines five distinct response styles through the `ResponseTone` enum:
-
-```python
-class ResponseTone(Enum):
-    """Available response styles for the finalizer with detailed descriptions."""
-    NATURAL = "natural"
-    EXPLANATORY = "explanatory"
-    FORMAL = "formal"
-    CONCISE = "concise"
-    LEARNING = "learning"
-```
-
-### Supported Tones
-
-1. **Natural** (default): Friendly, conversational responses as if talking to a friend
-2. **Explanatory**: Detailed, educational explanations with examples and analogies
-3. **Formal**: Professional, structured language with clear organization
-4. **Concise**: Brief, to-the-point answers focusing on essential information
-5. **Learning**: Teaching approach with step-by-step guidance and educational structure
-
-### Tone Integration in Finalizer
-
-The finalizer dynamically adapts its response style based on the requested tone:
-
-```python
-def _finalizer_node(self, state: AgentState) -> AgentState:
-    """Synthesizes the complete conversation into a coherent final response."""
-    messages = state.get("messages", [])
-    requested_tone = state.get("tone", "natural") or "natural"
-    tone_instruction = self._get_tone_instruction(requested_tone)
-
-    finalization_prompt_content = ConversationPrompts.FINALIZER_INSTRUCTIONS.format(
-        tone_instruction=tone_instruction
-    )
-    finalization_prompt = SystemMessage(content=finalization_prompt_content)
-
-    safe_messages = self._filter_safe_messages(messages)
-    final_response = self.finalizer_model.invoke([finalization_prompt] + safe_messages)
-
-    return self._create_state_update(final_response, state.get("agent_hops", 0), state)
-```
-
-### Enhanced Conversation Prompts
-
-The system uses structured prompts for different conversation roles with comprehensive instructions:
-
-```python
-class ConversationPrompts:
-    """System prompts for different conversation roles."""
-
-    COORDINATOR_INSTRUCTIONS = """Your goal is to analyze queries and decide which agent to route to from the **AVAILABLE AGENTS**.
-**AVAILABLE AGENTS**
-{plugin_descriptions}
-- finalize: Call when you think the answer for the user query/question is ready or no suitable agents.
-**DECISION OUTPUT**
-- Choose ONE of: {tool_options} | goto_finalize"""
-
-    HOP_LIMIT_REACHED = """You have reached maximum agent call ({current}/{maximum}) allowed by the system.
-**What this means:**
-- The system cannot process any more agent switches
-- You must provide a final answer based on the information gathered so far
-- Further processing is not possible
-
-**What you should do:**
-1. Acknowledge that you've hit the system limit. Explain it friendly to users, do not use term system limit or agent stuff
-2. Explain what you were able to accomplish base on results.
-3. Provide the best possible answer with the available information
-4. If the answer is incomplete, explain why and suggest the user continue the chat
-
-**IMPORTANT**, never makeup the answer if provided information by agents not enough
-Please provide a helpful response that addresses the user's query while explaining the hop limit situation."""
-
-    FINALIZER_INSTRUCTIONS = """You are the Finalizer, responsible for creating the final response for a multi-agent conversation.
-
-CRITICAL REQUIREMENTS:
-1. **RESPECT AGENT RESPONSES** - Use ONLY the information provided by agents and tools, do NOT make up or add information
-2. **ADDRESS CURRENT USER QUERY** - Focus on answering the recent user question, use previous conversation as context
-3. **SYNTHESIZE RELEVANT WORK** - Connect and organize the work done by different agents into a coherent answer
-4. **BE HELPFUL** - Provide useful, actionable information that directly answers the user's question
-5. **RESPONSE STYLE**: {tone_instruction}
-
-IMPORTANT: Your role is to synthesize and present the information that agents have gathered, not to generate new information or make assumptions beyond what's provided in the conversation."""
-```
-
-### Dynamic Prompt Building
-
-The system dynamically builds prompts based on available plugins:
-
-```python
-def _build_plugin_descriptions(self) -> str:
-    """Build formatted string of available plugin descriptions."""
-    descriptions = []
-    for plugin_bundle in self.plugin_manager.plugin_bundles.values():
-        descriptions.append(f"- {plugin_bundle.metadata.name}: {plugin_bundle.metadata.description}")
-    return "\n".join(descriptions)
-
-
-def _build_tool_options(self) -> str:
-    """Build formatted string of available tool options."""
-    tool_names = [
-        f"goto_{plugin_bundle.metadata.name}" for plugin_bundle in self.plugin_manager.plugin_bundles.values()
-    ]
-    return " | ".join(tool_names)
-```
-
-This dynamic approach ensures:
-
-- Real-time plugin availability in prompts
-- Consistent tool naming conventions
-- Clear agent descriptions for routing decisions
-- Flexible prompt adaptation to plugin changes
-
-## Tone Control Flow
-
-The tone control system flows through the entire conversation pipeline:
-
-```mermaid
-flowchart TD
-    subgraph "Client Layer"
-        U[User Request with Tone]
-    end
-    
-    subgraph "API Layer"
-        API[API Gateway]
-        VAL[Request Validation]
-    end
-    
-    subgraph "Orchestration Layer"
-        COORD[Enhanced Coordinator]
-        CT[Control Tools]
-        PA[Plugin Agents]
-        PT[Plugin Tools]
-        FINAL[Enhanced Finalizer]
-        SUSPEND[Suspend Node]
-    end
-    
-    subgraph "State Management"
-        STATE[AgentState]
-        TONE_STATE[tone field]
-        SAFETY[Message Filtering]
-        LOGGING[Tool Execution Logging]
-    end
-    
-    subgraph "Response Generation"
-        RESP[Response with Tone]
-    end
-    
-    U --> API
-    API --> VAL
-    VAL --> COORD
-    COORD --> STATE
-    STATE --> TONE_STATE
-    STATE --> SAFETY
-    STATE --> LOGGING
-    TONE_STATE --> COORD
-    COORD --> CT
-    CT --> PA
-    PA --> PT
-    PT --> COORD
-    COORD --> FINAL
-    COORD --> SUSPEND
-    SUSPEND --> FINAL
-    FINAL --> RESP
-    RESP --> U
-```
-
-## Tool Execution Logging and Safety
-
-The system includes a comprehensive `ToolExecutionLogger` callback handler for tracking tool execution and managing hop
-counting:
-
-```python
-class ToolExecutionLogger(BaseCallbackHandler):
-    """Logs tool execution and manages hop counting for conversation safety."""
-
-    def on_tool_start(self, serialized=None, input_str=None, **kwargs):
-        """Logs tool execution start and updates hop counters for non-routing tools."""
-        try:
-            tool_name = serialized.get("name") if isinstance(serialized, dict) else None
-            self.logger.debug(f"Tool start: name={tool_name or 'unknown'} input={input_str}")
-
-            if tool_name.startswith("goto_"):
-                self.logger.debug(f"Tool name={tool_name or 'unknown'} is skipped from counting")
-            elif self.state_updater:
-                self.logger.debug(f"Updating tool_hops: +1 (tool: {tool_name})")
-                self.state_updater("tool_hops", 1)
-            else:
-                self.logger.warning("No state_updater available for tool_hops tracking")
-        except Exception as e:
-            self.logger.error(f"Error in on_tool_start: {e}")
-
-    def on_tool_end(self, output=None, **kwargs):
-        """Logs tool execution completion."""
-        try:
-            output_preview = str(output)[:200] if output else None
-            self.logger.debug(f"Tool end: output={output_preview}")
-        except Exception:
-            pass
-```
-
-### Message Safety and Filtering
-
-The system implements robust message filtering to prevent validation errors from incomplete tool call sequences:
-
-```python
-def _filter_safe_messages(self, messages: List) -> List:
-    """Remove messages with incomplete tool call sequences to prevent validation errors."""
-    if not messages:
-        return []
-
-    filtered_messages = []
-    for message_index, message in enumerate(messages):
-        if self._is_incomplete_tool_call_sequence(message, messages, message_index):
-            self.logger.warning(f"Skipping incomplete tool call sequence in message {message_index}")
-            continue
-        filtered_messages.append(message)
-
-    return filtered_messages
-
-
-def _is_incomplete_tool_call_sequence(self, message: Any, messages: List, message_index: int) -> bool:
-    """Determine if assistant message contains tool calls without proper responses."""
-    if not (hasattr(message, "tool_calls") and message.tool_calls and isinstance(message, AIMessage)):
-        return False
-
-    tool_call_ids = {tc.get("id") for tc in message.tool_calls if tc.get("id")}
-    found_tool_responses = self._find_tool_responses(messages, message_index)
-
-    return not tool_call_ids.issubset(found_tool_responses)
-```
-
-This safety mechanism ensures that:
-
-- Incomplete tool call sequences are filtered out
-- Validation errors are prevented during graph execution
-- The conversation flow remains stable even with malformed messages
-- Debugging information is logged for troubleshooting
 
 ## Complete Conversation Flow
 
-### High-Level Flow
+### High-Level Flow with Conditional Routing
 
 ```mermaid
 sequenceDiagram
@@ -705,8 +373,17 @@ sequenceDiagram
     alt Route to Control Tools
         C->>CT: Execute Routing Tool
         CT->>PA: Activate Plugin Agent
-        PA->>PT: Execute Plugin Tools
-        PT->>C: Return Results
+        PA->>PA: Process with LLM
+        
+        alt Agent has tool calls
+            PA->>PT: Route to tools (continue)
+            PT->>C: Execute tools & return to coordinator
+        else Agent answers directly
+            PA->>PA: Create fake "back" tool call
+            PA->>PT: Route to tools (continue)
+            PT->>C: Execute "back" tool & return to coordinator
+        end
+        
         C->>C: Evaluate Next Step
     else Route to Finalizer
         C->>F: Finalize Response
@@ -719,17 +396,17 @@ sequenceDiagram
     O->>U: Return Response
 ```
 
-### Detailed Node Interactions
+### Detailed Node Interactions with New Routing
 
 ```mermaid
 graph TB
-    subgraph "Conversation Flow"
+    subgraph "Conversation Flow with Conditional Routing"
         A[User Input] --> B[Enhanced Coordinator]
         B --> C{Decision}
         
         C -->|continue| D[control_tools]
         C -->|suspend| E[suspend]
-        C -->|end| K[Enhanced Finalizer]
+        C -->|done| K[Enhanced Finalizer]
         
         D --> G{Plugin Selection}
         G -->|math| H[math_agent]
@@ -737,122 +414,42 @@ graph TB
         G -->|info| J[info_agent]
         G -->|finalize| K
         
-        H --> L[math_tools]
-        I --> M[search_tools]
-        J --> N[info_tools]
-        
-        L --> O[Enhanced Coordinator]
-        M --> O
-        N --> O
+        subgraph "Agent Decision Making"
+            H --> L{should_continue}
+            I --> M{should_continue}
+            J --> N{should_continue}
+            
+            L -->|continue| O[math_tools]
+            L -->|back| P[coordinator]
+            M -->|continue| Q[search_tools]
+            M -->|back| P
+            N -->|continue| R[info_tools]
+            N -->|back| P
+            
+            O --> P
+            Q --> P
+            R --> P
+        end
         
         E --> K
-        K --> F[END]
+        K --> F[DONE]
     end
     
     subgraph "State Management"
-        P[AgentState] --> Q[agent_hops]
-        P --> R[tool_hops]
-        P --> S[messages]
-        P --> T[current_agent]
-        P --> U[tone]
-        P --> V[message_filtering]
-        P --> W[tool_execution_logging]
+        S[AgentState] --> T[agent_hops]
+        S --> U[messages]
+        S --> V[current_agent]
+        S --> W[tone]
+        S --> X[message_filtering]
+        S --> Y[tool_execution_logging]
     end
 ```
-
-## Graph Compilation and Execution
-
-### Compilation Process
-
-```mermaid
-graph LR
-    subgraph "Graph Building"
-        A[Create StateGraph] --> B[Add Core Nodes]
-        B --> C[Add Plugin Nodes]
-        C --> D[Add Routing Edges]
-        D --> E[Set Entry Point]
-    end
-    
-    subgraph "Compilation"
-        E --> F[Compile Graph]
-        F --> G[Add Checkpointer]
-        G --> H[Final Graph]
-    end
-    
-    subgraph "Execution"
-        H --> I[Invoke Graph]
-        I --> J[Process State]
-        J --> K[Return Result]
-    end
-```
-
-**Implementation:**
-
-```python
-def _build_conversation_graph(self) -> StateGraph:
-    graph = StateGraph(AgentState)
-
-    self._add_core_orchestration_nodes(graph)
-    self._add_dynamic_plugin_nodes(graph)
-
-    graph.set_entry_point(GraphNodeNames.COORDINATOR)
-    self._add_conditional_routing_edges(graph)
-
-    compilation_options = {"checkpointer": self.checkpointer} if self.checkpointer else {}
-    compiled_graph = graph.compile(**compilation_options)
-
-    return compiled_graph
-```
-
-### Graph Execution with Safety
-
-The orchestrator provides a safe execution method with recursion limits and error handling:
-
-```python
-async def ask(self, state: AgentState) -> AgentState:
-    """Process conversation state through multi-agent workflow."""
-    try:
-        config = {"recursion_limit": self.settings.graph_recursion_limit}
-        return await self.graph.ainvoke(state, config)
-    except Exception as e:
-        self.logger.error(f"Error in conversation processing: {e}")
-        self.logger.error(traceback.format_exc())
-        raise
-```
-
-### State Management and Updates
-
-The system uses standardized state updates for consistent graph node responses:
-
-```python
-@staticmethod
-def _create_state_update(message: AIMessage, agent_hops: int, state: Dict[str, Any] = None) -> Dict[str, Any]:
-    """Create standardized state update structure for graph node responses."""
-    update = {
-        "messages": [message],
-        "agent_hops": agent_hops,
-    }
-
-    if state:
-        for key in ["tool_hops", "current_agent", "plugin_context", "session_id"]:
-            if key in state:
-                update[key] = state[key]
-
-    return update
-```
-
-This ensures:
-
-- Consistent state structure across all nodes
-- Proper hop counting and tracking
-- Preservation of important state fields
-- Clean separation between new and existing state data
 
 ## Practical Examples
 
-### Example 1: Simple Math Query
+### Example 1: Agent Answers Directly (New Flow)
 
-**User Query:** "What is 15 * 23?"
+**User Query:** "What is 2+2?"
 
 **Execution Flow:**
 
@@ -863,608 +460,116 @@ sequenceDiagram
     participant CT as Control Tools
     participant MA as Math Agent
     participant MT as Math Tools
-    participant F as Enhanced Finalizer
     
-    U->>C: "What is 15 * 23?"
+    U->>C: "What is 2+2?"
     C->>C: Analyze query, decide route
-    C->>C: Filter safe messages
     C->>CT: goto_math_agent()
     CT->>MA: Activate math agent
-    MA->>MT: Execute calculation
-    MT->>MA: Return 345
-    MA->>C: Return result
+    MA->>MA: Generate response "2+2=4"
+    MA->>MA: Create fake "back" tool call
+    MA->>MT: Route to tools (continue)
+    MT->>MT: Execute "back" tool
+    MT->>C: Return "back" to coordinator
+    C->>C: Evaluate completion
+    C->>CT: goto_finalize()
+    CT->>F: Finalize response
+    F->>U: "2+2=4"
+```
+
+**Key Changes:**
+
+1. **Agent Decision**: Creates fake "back" tool call instead of routing directly
+2. **Consistent Flow**: Always goes through tools node before coordinator
+3. **No Circular Routing**: Tools route directly to coordinator, not back to agent
+
+### Example 2: Agent Uses Tools (Existing Flow)
+
+**User Query:** "Calculate 15 * 23"
+
+**Execution Flow:**
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant C as Enhanced Coordinator
+    participant CT as Control Tools
+    participant MA as Math Agent
+    participant MT as Math Tools
+    
+    U->>C: "Calculate 15 * 23"
+    C->>C: Analyze query, decide route
+    C->>CT: goto_math_agent()
+    CT->>MA: Activate math agent
+    MA->>MA: Generate tool call to calculator
+    MA->>MT: Route to tools (continue)
+    MT->>MT: Execute calculator tool
+    MT->>C: Return result to coordinator
     C->>C: Evaluate completion
     C->>CT: goto_finalize()
     CT->>F: Finalize response
     F->>U: "15 * 23 = 345"
 ```
 
-**Graph Routing Decisions:**
+## Benefits of the New Routing System
 
-1. **Coordinator Decision**: `continue` (has tool calls)
-2. **Control Tools Result**: `math_agent`
-3. **Plugin Route**: `math_agent` → `math_tools` → `coordinator`
-4. **Final Decision**: `goto_finalize` → returns `"finalize"` → routes to finalizer
+### 1. **Eliminated Circular Routing**
 
-### Example 2: Multi-Agent Workflow
+- **Before**: `agent → tools → agent → tools → ...` (infinite loop)
+- **After**: `agent → tools → coordinator` (clean, predictable flow)
 
-**User Query:** "Search for Python async programming info and calculate years since Python 3.7 release"
+### 2. **Consistent State Management**
 
-**Execution Flow:**
+- All agent responses go through the same routing path
+- State updates happen consistently through the tools node
+- Better debugging and monitoring capabilities
 
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant C as Enhanced Coordinator
-    participant CT as Control Tools
-    participant SA as Search Agent
-    participant ST as Search Tools
-    participant MA as Math Agent
-    participant MT as Math Tools
-    participant F as Enhanced Finalizer
-    
-    U->>C: Complex query
-    C->>C: Filter safe messages
-    C->>CT: goto_search_agent()
-    CT->>SA: Activate search agent
-    SA->>ST: Execute search tools
-    ST->>SA: Return search results
-    SA->>C: Return results
-    C->>C: Filter safe messages
-    C->>CT: goto_math_agent()
-    CT->>MA: Activate math agent
-    MA->>MT: Execute calculation
-    MT->>MA: Return calculation
-    MA->>C: Return result
-    C->>CT: goto_finalize()
-    CT->>F: Finalize combined response
-    F->>U: Comprehensive answer
-```
+### 3. **Clear Intent Communication**
 
-**State Changes:**
+- Fake tool calls make agent routing decisions explicit
+- Easier to understand and debug conversation flow
+- More predictable system behavior
 
-```mermaid
-graph LR
-    subgraph "State Progression"
-        A[agent_hops: 0<br/>tool_hops: 0]
-        B[agent_hops: 1<br/>tool_hops: 1]
-        C[agent_hops: 2<br/>tool_hops: 2]
-        D[agent_hops: 2<br/>tool_hops: 2]
-    end
-    
-    A --> B --> C --> D
-```
+### 4. **Improved Error Handling**
 
-### Example 3: Hop Limit Reached
-
-**User Query:** "I need a very detailed analysis that requires multiple agents..."
-
-**Execution Flow (Hit Hop Limit):**
-
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant C as Enhanced Coordinator
-    participant CT as Control Tools
-    participant A1 as Agent 1
-    participant T1 as Tools 1
-    participant A2 as Agent 2
-    participant T2 as Tools 2
-    participant A3 as Agent 3
-    participant T3 as Tools 3
-    participant S as Suspend Node
-    participant F as Enhanced Finalizer
-    
-    U->>C: Complex query
-    C->>C: Filter safe messages
-    C->>CT: goto_agent1()
-    CT->>A1: Activate agent 1
-    A1->>T1: Execute tools
-    T1->>A1: Return results
-    A1->>C: Return result
-    C->>C: Filter safe messages
-    C->>CT: goto_agent2()
-    CT->>A2: Activate agent 2
-    A2->>T2: Execute tools
-    T2->>A2: Return results
-    A2->>C: Return result
-    C->>C: Filter safe messages
-    C->>CT: goto_agent3()
-    CT->>A3: Activate agent 3
-    A3->>T3: Execute tools
-    T3->>A3: Return results
-    A3->>C: Return result
-    C->>C: Check hop limits
-    C->>S: Route to suspend (limit reached)
-    S->>F: Graceful termination
-    F->>U: Final response with explanation
-```
-
-## Plugin Integration Architecture
-
-### Plugin Bundle Structure
-
-```mermaid
-graph TB
-    subgraph "Plugin Bundle"
-        A[Plugin Bundle] --> B[get_graph_nodes]
-        A --> C[get_graph_edges]
-        
-        B --> D[Agent Node Functions]
-        C --> E[Direct Edges]
-        C --> F[Conditional Edges]
-    end
-    
-    subgraph "Integration"
-        G[Plugin Manager] --> H[Register Bundle]
-        H --> I[Extract Nodes & Edges]
-        I --> J[Add to Graph]
-    end
-```
-
-### Dynamic Plugin Loading and Graph Rebuilding
-
-The system supports dynamic plugin loading with automatic graph rebuilding:
-
-```mermaid
-graph LR
-    subgraph "Plugin Discovery"
-        A[Scan Plugin Directory] --> B[Load Plugin Bundles]
-        B --> C[Register with Manager]
-    end
-    
-    subgraph "Graph Rebuilding"
-        C --> D[Plugin Changes Detected]
-        D --> E[Rebuild Graph]
-        E --> F[Update Coordinator Tools]
-    end
-```
-
-**Implementation:**
-
-```python
-def rebuild_graph(self) -> None:
-    """Rebuild conversation graph after plugin changes."""
-    try:
-        self.logger.info("Rebuilding orchestrator graph after plugin changes...")
-        self.graph = self._build_conversation_graph()
-        self.logger.info("Graph rebuilt successfully")
-    except Exception as e:
-        self.logger.error(f"Failed to rebuild graph: {e}")
-        raise
-```
-
-This capability ensures:
-
-- Dynamic plugin integration without service restart
-- Automatic graph updates when plugins change
-- Robust error handling during rebuilds
-- Comprehensive logging for debugging
-- Seamless plugin hot-swapping
-
-## Error Handling and Safety
-
-### Error Handling Flow
-
-```mermaid
-graph TB
-    subgraph "Error Handling"
-        A[Graph Execution] --> B{Error Occurs?}
-        B -->|Yes| C[Log Error]
-        B -->|No| D[Continue]
-        
-        C --> E[Create Error Response]
-        E --> F[Increment Hops]
-        F --> G[Return Error State]
-    end
-    
-    subgraph "Enhanced Safety Mechanisms"
-        H[Hop Limits] --> I[Prevent Infinite Loops]
-        J[Tool Call Validation] --> K[Ensure Message Safety]
-        L[Message Filtering] --> M[Remove Invalid Messages]
-        N[ToolExecutionLogger] --> O[Track Tool Execution]
-        P[State Updates] --> Q[Standardized Format]
-        R[Graph Rebuilding] --> S[Dynamic Plugin Updates]
-    end
-```
-
-## Configuration and Customization
-
-### Graph Configuration
-
-```mermaid
-graph LR
-    subgraph "Configuration"
-        A[Settings] --> B[Max Agent Hops]
-        A --> C[Max Tool Hops]
-        A --> D[Graph Recursion Limit]
-        A --> E[LLM Provider Settings]
-        A --> F[Separate Model Configs]
-    end
-    
-    subgraph "Runtime Config"
-        G[Input State] --> H[Configurable Parameters]
-        H --> I[Callback Handlers]
-        I --> J[Execution Config]
-        J --> K[Message Filtering]
-        J --> L[Tool Execution Logging]
-    end
-    
-    subgraph "Enhanced Features"
-        M[Coordinator Model] --> N[Parallel Tool Calls]
-        O[Suspend Model] --> P[Graceful Termination]
-        Q[Finalizer Model] --> R[Tone-Aware Responses]
-        S[ToolExecutionLogger] --> T[Hop Counting]
-        U[State Updates] --> V[Standardized Format]
-    end
-```
+- Clear separation between agent decisions and tool execution
+- Better error isolation and recovery
+- Consistent error handling patterns
 
 ## Best Practices
 
-### 1. **Node Design**
+### 1. **Agent Implementation**
 
-- Keep nodes focused on single responsibilities
-- Use descriptive names for better debugging
-- Implement proper error handling in each node
+- Always implement `should_continue` method properly
+- Use fake tool calls for direct answers
+- Clear system prompts that guide tool usage
 
-### 2. **Edge Management**
+### 2. **Tool Design**
 
-- Use conditional edges for decision-based routing
-- Implement proper fallback paths
-- Avoid circular dependencies
+- Tools should return meaningful results
+- Handle errors gracefully
+- Provide clear documentation
 
-### 3. **State Management**
+### 3. **Plugin Structure**
 
-- Design state schema carefully
-- Validate state updates
-- Implement proper cleanup mechanisms
+- Follow the established plugin structure
+- Register plugins properly in `__init__.py`
+- Include proper metadata and capabilities
 
-### 4. **Plugin Integration**
+### 4. **Testing**
 
-- Maintain clear separation between core and plugin logic
-- Use consistent interfaces for plugin communication
-- Support dynamic plugin loading and unloading
-
-### 5. **Error Handling**
-
-- Implement graceful degradation
-- Log errors with sufficient context
-- Provide user-friendly error messages
-
-### 6. **Performance Optimization**
-
-- Always implement hop limits to prevent infinite loops
-- Filter messages to ensure tool call sequences are complete
-- Use callback handlers for execution tracking and debugging
-
-## Consistent Naming Convention
-
-All routing tools in the system follow a consistent naming pattern:
-
-- **Plugin Agents**: `goto_{plugin_name}_agent` (e.g., `goto_math_agent`, `goto_search_agent`)
-- **Finalization**: `goto_finalize` (for completing conversations)
-- **Tool Execution**: All routing tools use the `goto_` prefix for clarity
-
-### How Routing Works
-
-```python
-# Tool definitions in SDK Manager:
-def goto_math_agent() -> str:
-    return "math_agent"  # Routes to math_agent node
-
-
-def goto_finalize() -> str:
-    return "finalize"  # Routes to finalizer node
-```
-
-### Routing Logic
-
-The control tools routing logic handles three scenarios:
-
-1. **Plugin Routing**: `"math_agent"` → routes to `math_agent` node
-2. **Finalization**: `"finalize"` → routes to `finalizer` node
-3. **Error Handling**: Unknown results → routes to `finalizer` node
-
-This consistency makes the system easier to understand and maintain, as developers can immediately identify routing
-tools by their naming pattern.
-
-### **Enhanced Plugin Route Determination**
-
-The system uses the `_determine_plugin_route` method to handle routing decisions with comprehensive validation:
-
-```python
-def _determine_plugin_route(self, state: AgentState) -> str:
-    """Route to appropriate plugin agent based on tool results."""
-    messages = state.get("messages", [])
-    if not messages:
-        return RoutingDecision.END
-
-    last_message = messages[-1]
-
-    if not self._is_valid_tool_message(last_message):
-        self.logger.warning("No valid tool message found in routing")
-        return RoutingDecision.END
-
-    tool_result = last_message.content
-    self.logger.debug(
-        f"Tool routing: tool_result='{tool_result}', available_plugins={[bundle.metadata.name for bundle in self.plugin_manager.plugin_bundles.values()]}"
-    )
-
-    if tool_result in [
-        plugin_bundle.metadata.name for plugin_bundle in self.plugin_manager.plugin_bundles.values()
-    ]:
-        return tool_result
-    elif tool_result == "finalize":
-        return RoutingDecision.END
-    else:
-        self.logger.warning(f"Unknown tool result: '{tool_result}', routing to END")
-        return RoutingDecision.END
-
-
-@staticmethod
-def _is_valid_tool_message(message: Any) -> bool:
-    """Validate message has required structure for tool routing."""
-    return message and hasattr(message, "content")
-```
-
-This enhanced routing provides:
-
-- Comprehensive message validation
-- Detailed logging for debugging
-- Graceful handling of unknown tool results
-- Clear error messages for troubleshooting
-- Robust fallback to finalizer for error cases
-
-## Enhanced Model Creation and Configuration
-
-The orchestrator provides sophisticated model creation with separate configurations for different roles, each with
-fallback to the default LLM:
-
-### Coordinator Model
-
-```python
-def _create_coordinator_model(self):
-    """Create LLM model for coordinator with bound routing tools."""
-    from ...infrastructure.llm.providers import ModelConfig
-
-    control_tools = self.plugin_manager.get_coordinator_tools()
-
-    # Use coordinator-specific provider if configured, otherwise fallback to default
-    provider = self.settings.coordinator_llm_provider or self.settings.default_llm_provider
-    model_name = self.settings.get_default_provider_llm_model(provider)
-    temperature = self.settings.coordinator_temperature
-    max_tokens = self.settings.coordinator_max_tokens
-
-    model_config = ModelConfig(
-        provider=provider,
-        model_name=model_name,
-        temperature=temperature,
-        max_tokens=max_tokens,
-    )
-
-    base_model = self.llm_factory.create_base_model(model_config)
-    return base_model.bind_tools(control_tools, parallel_tool_calls=True)
-```
-
-### Suspend Model
-
-```python
-def _create_suspend_model(self):
-    """Create LLM model for suspend node with fallback to default."""
-    from ...infrastructure.llm.providers import ModelConfig
-
-    # Use suspend-specific provider if configured, otherwise fallback to default
-    provider = self.settings.suspend_llm_provider or self.settings.default_llm_provider
-    model_name = self.settings.get_default_provider_llm_model(provider)
-    temperature = self.settings.suspend_temperature
-    max_tokens = self.settings.suspend_max_tokens
-
-    model_config = ModelConfig(
-        provider=provider,
-        model_name=model_name,
-        temperature=temperature,
-        max_tokens=max_tokens,
-    )
-
-    return self.llm_factory.create_base_model(model_config)
-```
-
-### Finalizer Model
-
-```python
-def _create_finalizer_model(self):
-    """Create LLM model for synthesizing final responses."""
-    from ...infrastructure.llm.providers import ModelConfig
-
-    # Use finalizer-specific provider if configured, otherwise fallback to default
-    provider = self.settings.finalizer_llm_provider or self.settings.default_llm_provider
-    model_name = self.settings.get_finalizer_provider_llm_model()
-    temperature = self.settings.finalizer_temperature
-    max_tokens = self.settings.finalizer_max_tokens
-
-    model_config = ModelConfig(
-        provider=provider,
-        model_name=model_name,
-        temperature=temperature,
-        max_tokens=max_tokens,
-    )
-
-    return self.llm_factory.create_base_model(model_config)
-```
-
-### Configuration Properties
-
-The system provides separate configuration properties for each model type:
-
-```python
-# Coordinator configuration
-coordinator_llm_provider: Optional[str] = None  # Falls back to default
-coordinator_temperature: float = 0.7
-coordinator_max_tokens: int = 4096
-
-# Suspend node configuration  
-suspend_llm_provider: Optional[str] = None  # Falls back to default
-suspend_temperature: float = 0.5
-suspend_max_tokens: int = 1024
-
-# Finalizer configuration
-finalizer_llm_provider: Optional[str] = None  # Falls back to default
-finalizer_temperature: float = 0.3
-finalizer_max_tokens: int = 1024
-```
-
-This separation provides:
-
-- **Independent Model Configurations**: Each role can have optimized settings
-- **Smart Fallbacks**: Uses default LLM when specific providers aren't configured
-- **Tailored Parameters**: Different temperature and token limits for different roles
-- **Parallel Tool Calls**: Coordinator supports parallel tool execution
-- **Role-Specific Optimization**: Each model is tuned for its specific function
-
-## Enhanced Finalizer with Tone-Aware Response Generation
-
-The finalizer has been enhanced to support dynamic response tone control while ensuring it respects and synthesizes
-actual agent responses rather than making up information.
-
-### **Key Features**
-
-1. **Dynamic Tone Support**: Supports multiple response styles (natural, explanatory, formal, concise, learning)
-2. **Response Respect**: Uses ONLY information provided by agents without making up or adding assumptions
-3. **Current Query Focus**: Focuses on the most recent user query, using previous conversation as context
-4. **Structured Prompts**: Uses comprehensive prompt templates with tone-specific instructions
-5. **Robust Default Handling**: Ensures tone is always set with fallback to "natural"
-6. **Helpful Responses**: Provides useful, actionable information that directly answers the user's question
-
-### **Implementation**
-
-The finalizer dynamically adapts its response style based on the requested tone:
-
-```python
-def _finalizer_node(self, state: AgentState) -> AgentState:
-    """Synthesizes the complete conversation into a coherent final response."""
-    messages = state.get("messages", [])
-    requested_tone = state.get("tone", "natural") or "natural"
-    tone_instruction = self._get_tone_instruction(requested_tone)
-
-    finalization_prompt_content = ConversationPrompts.FINALIZER_INSTRUCTIONS.format(
-        tone_instruction=tone_instruction
-    )
-    finalization_prompt = SystemMessage(content=finalization_prompt_content)
-
-    safe_messages = self._filter_safe_messages(messages)
-    final_response = self.finalizer_model.invoke([finalization_prompt] + safe_messages)
-
-    return self._create_state_update(final_response, state.get("agent_hops", 0), state)
-```
-
-### **Tone Instruction Generation**
-
-The system provides detailed tone descriptions through the `ResponseTone` enum:
-
-```python
-def _get_tone_instruction(self, tone: str) -> str:
-    """Returns the appropriate tone instruction based on the requested response style."""
-    return ResponseTone.get_description(tone)
-```
-
-### **Default Handling**
-
-The system ensures tone is always set with robust default handling at multiple levels:
-
-- **API Level**: `tone: Optional[str] = Field(default="natural")`
-- **Client Level**: `"tone": tone or "natural"`
-- **Service Level**: `"tone": (tone or "natural").strip() or "natural"`
-- **Finalizer Level**: `requested_tone = state.get("tone", "natural") or "natural"`
-
-This ensures the finalizer always has a valid tone instruction, even if the API request is missing or contains empty
-values.
-
-### **Example: How Finalizer Adapts to Different Tones**
-
-**User Query**: "What's the weather like in Tokyo and calculate the time difference from New York?"
-
-**Agent Responses**:
-
-1. **Weather Agent**: "The current weather in Tokyo is 22°C with light rain. Humidity is 75%."
-2. **Math Agent**: "Tokyo is 14 hours ahead of New York. If it's 9 AM in New York, it's 11 PM in Tokyo."
-
-#### **Natural Tone** (default)
-
-```
-Here's what I found for you about Tokyo:
-
-The weather right now is 22°C with light rain and 75% humidity. Pretty typical spring weather there!
-
-For the time difference, Tokyo is 14 hours ahead of New York. So if it's 9 AM in New York, it's 11 PM in Tokyo. That's a pretty big difference - definitely something to keep in mind if you're planning calls or meetings.
-
-Hope that helps with your planning!
-```
-
-#### **Formal Tone**
-
-```
-Based on the information gathered, here are the details for Tokyo:
-
-**Weather Conditions:**
-The current temperature in Tokyo is 22°C with light rain and 75% humidity.
-
-**Time Difference:**
-Tokyo operates 14 hours ahead of New York. For reference: when it is 9:00 AM in New York, it is 11:00 PM in Tokyo.
-
-This information should assist with your planning requirements.
-```
-
-#### **Concise Tone**
-
-```
-Tokyo weather: 22°C, light rain, 75% humidity
-Time difference: Tokyo is 14 hours ahead of New York
-```
-
-**Key Points**:
-
-- ✅ Uses ONLY information from agents
-- ✅ Focuses on the current user query (weather + time difference)
-- ✅ Adapts response style based on requested tone
-- ✅ Provides useful, actionable information
-- ✅ Maintains accuracy by not adding assumptions
-- ✅ Supports multiple communication styles (natural, formal, concise, etc.)
-
-## Benefits of the Improved Routing Design
-
-The improved routing design provides several key advantages:
-
-1. **Clear Responsibility Separation**: Each component has a focused role
-    - Coordinator: Makes all primary routing decisions
-    - Control Tools: Handles plugin execution and error cases
-    - Finalizer: Handles response synthesis
-
-2. **Robust Error Handling**: Graceful handling of unexpected routing results
-    - Unknown results route to finalizer instead of crashing
-    - Error cases are handled consistently
-
-3. **Easier Debugging**: Clear routing logic means easier troubleshooting
-    - Coordinator decisions are centralized
-    - Plugin routing is isolated
-    - Error paths are well-defined
-
-4. **More Maintainable**: Changes to routing logic are localized
-    - Primary finalization logic is in coordinator
-    - Error handling is in control tools
-    - Clear separation of concerns
-
-5. **Predictable Flow**: Users and developers can understand the conversation flow
-    - Clear decision points
-    - Logical progression through the system
-    - Graceful error recovery
+- Test both tool usage and direct answer scenarios
+- Verify routing behavior with different agent responses
+- Test error conditions and edge cases
 
 ## Conclusion
 
-The LangGraph architecture in Cadence provides a robust, flexible foundation for multi-agent conversations. By
-separating
-concerns into distinct layers and using conditional routing, the system can handle complex workflows while maintaining
-safety and performance. The dynamic plugin integration allows for extensibility without compromising the core
-orchestration logic.
+The new conditional routing system in Cadence provides a robust, predictable foundation for multi-agent conversations. By implementing fake tool calls and proper edge routing, we've eliminated circular routing issues while maintaining the flexibility and power of the multi-agent architecture.
 
-The improved routing design eliminates redundancy and follows the single responsibility principle, making the system
-more predictable, maintainable, and easier to debug.
+The system now ensures that:
+
+- All agent responses follow a consistent routing path
+- Circular routing is prevented through proper edge configuration
+- State management is predictable and debuggable
+- The conversation flow is clear and maintainable
+
+This implementation makes Cadence more reliable and easier to debug while preserving all the advanced features of the multi-agent orchestration system.

@@ -86,14 +86,14 @@ class PostgreSQLThreadRepository(ThreadRepository):
             return True
 
     async def list_threads(
-            self,
-            user_id: Optional[str] = None,
-            org_id: Optional[str] = None,
-            status: Optional[ThreadStatus] = None,
-            limit: int = 20,
-            offset: int = 0,
-            sort_by: str = "updated_at",
-            sort_order: str = "desc",
+        self,
+        user_id: Optional[str] = None,
+        org_id: Optional[str] = None,
+        status: Optional[ThreadStatus] = None,
+        limit: int = 20,
+        offset: int = 0,
+        sort_by: str = "updated_at",
+        sort_order: str = "desc",
     ) -> List[Thread]:
         """List threads with filtering and pagination."""
         async with self.session_factory() as session:
@@ -124,7 +124,7 @@ class PostgreSQLThreadRepository(ThreadRepository):
             return [tm.to_domain_model() for tm in thread_models]
 
     async def count_threads(
-            self, user_id: Optional[str] = None, org_id: Optional[str] = None, status: Optional[ThreadStatus] = None
+        self, user_id: Optional[str] = None, org_id: Optional[str] = None, status: Optional[ThreadStatus] = None
     ) -> int:
         """Count threads matching filters."""
         async with self.session_factory() as session:
@@ -260,7 +260,7 @@ class PostgreSQLConversationRepository(ConversationRepository):
             return conversation_model.to_domain_model() if conversation_model else None
 
     async def get_conversation_history(
-            self, thread_id: str, limit: int = 50, before_id: Optional[str] = None
+        self, thread_id: str, limit: int = 50, before_id: Optional[str] = None
     ) -> List[Conversation]:
         """Get conversation history for a thread, ordered by creation time."""
         async with self.session_factory() as session:
@@ -290,7 +290,7 @@ class PostgreSQLConversationRepository(ConversationRepository):
             return result.scalar()
 
     async def get_recent_conversations(
-            self, user_id: Optional[str] = None, org_id: Optional[str] = None, limit: int = 10, hours_back: int = 24
+        self, user_id: Optional[str] = None, org_id: Optional[str] = None, limit: int = 10, hours_back: int = 24
     ) -> List[Conversation]:
         """Get recent conversations across threads."""
         cutoff_time = datetime.utcnow() - timedelta(hours=hours_back)
@@ -313,7 +313,7 @@ class PostgreSQLConversationRepository(ConversationRepository):
             return [cm.to_domain_model() for cm in conversation_models]
 
     async def search_conversations(
-            self, query: str, thread_id: Optional[str] = None, user_id: Optional[str] = None, limit: int = 20
+        self, query: str, thread_id: Optional[str] = None, user_id: Optional[str] = None, limit: int = 20
     ) -> List[Conversation]:
         """Search conversations by content using full-text search."""
         async with self.session_factory() as session:
@@ -339,12 +339,12 @@ class PostgreSQLConversationRepository(ConversationRepository):
             return [cm.to_domain_model() for cm in conversation_models]
 
     async def get_conversation_statistics(
-            self,
-            thread_id: Optional[str] = None,
-            user_id: Optional[str] = None,
-            org_id: Optional[str] = None,
-            start_date: Optional[datetime] = None,
-            end_date: Optional[datetime] = None,
+        self,
+        thread_id: Optional[str] = None,
+        user_id: Optional[str] = None,
+        org_id: Optional[str] = None,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
     ) -> Dict[str, Any]:
         """Get conversation statistics."""
         async with self.session_factory() as session:

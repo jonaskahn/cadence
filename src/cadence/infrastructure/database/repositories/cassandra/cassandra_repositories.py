@@ -53,20 +53,20 @@ class CassandraThreadRepository(ThreadRepository):
         raise NotImplementedError("Cassandra repositories not yet implemented")
 
     async def list_threads(
-            self,
-            user_id: Optional[str] = None,
-            org_id: Optional[str] = None,
-            status: Optional[ThreadStatus] = None,
-            limit: int = 20,
-            offset: int = 0,
-            sort_by: str = "updated_at",
-            sort_order: str = "desc",
+        self,
+        user_id: Optional[str] = None,
+        org_id: Optional[str] = None,
+        status: Optional[ThreadStatus] = None,
+        limit: int = 20,
+        offset: int = 0,
+        sort_by: str = "updated_at",
+        sort_order: str = "desc",
     ) -> List[Thread]:
         """List threads with filtering and pagination."""
         raise NotImplementedError("Cassandra repositories not yet implemented")
 
     async def count_threads(
-            self, user_id: Optional[str] = None, org_id: Optional[str] = None, status: Optional[ThreadStatus] = None
+        self, user_id: Optional[str] = None, org_id: Optional[str] = None, status: Optional[ThreadStatus] = None
     ) -> int:
         """Count threads matching filters."""
         raise NotImplementedError("Cassandra repositories not yet implemented")
@@ -105,7 +105,7 @@ class CassandraConversationRepository(ConversationRepository):
         raise NotImplementedError("Cassandra repositories not yet implemented")
 
     async def get_conversation_history(
-            self, thread_id: str, limit: int = 50, before_id: Optional[str] = None
+        self, thread_id: str, limit: int = 50, before_id: Optional[str] = None
     ) -> List[Conversation]:
         """Get conversation history for a thread, ordered by creation time."""
         raise NotImplementedError("Cassandra repositories not yet implemented")
@@ -115,24 +115,24 @@ class CassandraConversationRepository(ConversationRepository):
         raise NotImplementedError("Cassandra repositories not yet implemented")
 
     async def get_recent_conversations(
-            self, user_id: Optional[str] = None, org_id: Optional[str] = None, limit: int = 10, hours_back: int = 24
+        self, user_id: Optional[str] = None, org_id: Optional[str] = None, limit: int = 10, hours_back: int = 24
     ) -> List[Conversation]:
         """Get recent conversations across threads."""
         raise NotImplementedError("Cassandra repositories not yet implemented")
 
     async def search_conversations(
-            self, query: str, thread_id: Optional[str] = None, user_id: Optional[str] = None, limit: int = 20
+        self, query: str, thread_id: Optional[str] = None, user_id: Optional[str] = None, limit: int = 20
     ) -> List[Conversation]:
         """Search conversations by content using Cassandra search capabilities."""
         raise NotImplementedError("Cassandra repositories not yet implemented")
 
     async def get_conversation_statistics(
-            self,
-            thread_id: Optional[str] = None,
-            user_id: Optional[str] = None,
-            org_id: Optional[str] = None,
-            start_date: Optional[datetime] = None,
-            end_date: Optional[datetime] = None,
+        self,
+        thread_id: Optional[str] = None,
+        user_id: Optional[str] = None,
+        org_id: Optional[str] = None,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
     ) -> Dict[str, Any]:
         """Get conversation statistics."""
         raise NotImplementedError("Cassandra repositories not yet implemented")

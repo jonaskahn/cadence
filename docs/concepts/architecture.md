@@ -103,7 +103,7 @@ The brain of the system that coordinates agent interactions:
 - **Agent Routing**: Intelligent routing to appropriate agents with hop limit handling and message filtering
 - **State Management**: Persistent conversation and workflow state with standardized updates
 - **Safety Features**: Tool execution logging, message filtering, and error handling
-- **Dynamic Configuration**: Separate model configurations for coordinator and finalizer roles
+- **Dynamic Configuration**: Separate model configurations for coordinator, suspend, and finalizer roles
 - **Error Handling**: Graceful failure recovery and fallbacks
 - **Performance Optimization**: Caching and resource management
 - **Suspend Node**: Intelligent handling of hop limits with AI communication
@@ -136,12 +136,12 @@ Manages connections to various language models:
 Cadence aggregates plugins from two sources at startup:
 
 - Pip-installed packages (environment packages)
-    - Discovered via the SDK registry when packages that depend on `cadence_sdk` are present
-    - Import of the package triggers `register_plugin(...)`
-    - No extra configuration needed beyond having the package installed
+  - Discovered via the SDK registry when packages that depend on `cadence_sdk` are present
+  - Import of the package triggers `register_plugin(...)`
+  - No extra configuration needed beyond having the package installed
 
 - Directory-based packages (filesystem)
-    - Controlled via environment variable `CADENCE_PLUGINS_DIR`
+  - Controlled via environment variable `CADENCE_PLUGINS_DIR`
 
 ```bash
 # Single directory
@@ -259,18 +259,18 @@ At run-time the orchestrator uses the pre-wired nodes and edges like this:
 flowchart LR
     subgraph Plugin[Plugin Bundle]
       AgentNode[["agent.create_agent_node()"]]
-      ToolNode[["ToolNode(tools)"]]
+      ToolNode[["ToolNode(tools + back_tool)"]]
     end
     Coordinator[[coordinator]]
     SuspendNode[[suspend]]
     Finalizer[[finalizer]]
 
     AgentNode -- "should_continue = continue" --> ToolNode
-    ToolNode --> AgentNode
     AgentNode -- "should_continue = back" --> Coordinator
+    ToolNode -- "Always routes to coordinator" --> Coordinator
     Coordinator --> ToolNode
-    ToolNode -- "hop limit reached" --> SuspendNode
-    ToolNode -- "normal routing" --> AgentNode
+    ToolNode -- "agent hop limit reached" --> SuspendNode
+    ToolNode -- "normal routing" --> Coordinator
     SuspendNode --> Finalizer
 ```
 
@@ -280,6 +280,74 @@ Key responsibilities:
 - Agent.bind_model(): binds tools to the chat model (model.bind_tools(tools))
 - Agent.create_agent_node(): returns the callable used as the LangGraph node
 - Agent.should_continue(state): returns "continue" to call tools or "back" to return to the coordinator
+
+#### Enhanced Agent Decision Making
+
+The new system implements intelligent agent decision-making through the `should_continue` method:
+
+```python
+@staticmethod
+def should_continue(state: Dict[str, Any]) -> str:
+    """Decide whether to call tools or return to the coordinator."""
+    last_msg = state.get("messages", [])[-1] if state.get("messages") else None
+    if not last_msg:
+        return "back"
+
+    tool_calls = getattr(last_msg, "tool_calls", None)
+    return "continue" if tool_calls else "back"
+```
+
+**Key Logic:**
+
+- If the agent's response has `tool_calls` → returns `"continue"` (go to tools)
+- If the agent's response has NO `tool_calls` → returns `"back"` (return to coordinator)
+
+#### Fake Tool Call Implementation
+
+To ensure consistent routing flow, agents now create fake tool calls when they answer directly:
+
+```python
+if tool_calls:
+    logger.debug(f"Agent {self.metadata.name} generated {len(tool_calls)} tool calls.")
+else:
+    # If no tool calls, create a fake "back" tool call to return to coordinator
+    # This ensures the agent always routes through the proper flow
+    logger.debug(f"Agent {self.metadata.name} answered directly, creating fake 'back' tool call")
+    response.content = ""
+    response.tool_calls = [ToolCall(
+        id=str(uuid.uuid4()),
+        name="back",
+        args={}
+    )]
+```
+
+#### Plugin Bundle Edge Configuration
+
+The plugin bundles now define their own routing logic:
+
+```python
+def get_graph_edges(self) -> Dict[str, Any]:
+    """Generate LangGraph edge definitions for orchestrator routing."""
+    normalized_agent_name = str.lower(self.metadata.name).replace(" ", "_")
+    return {
+        "conditional_edges": {
+            f"{normalized_agent_name}_agent": {
+                "condition": self.agent.should_continue,
+                "mapping": {
+                    "continue": f"{normalized_agent_name}_tools",
+                    "back": "coordinator",
+                },
+            }
+        },
+        "direct_edges": [(f"{normalized_agent_name}_tools", "coordinator")],
+    }
+```
+
+**Key Changes:**
+
+- **Conditional Edges**: Agent routing decisions based on `should_continue` method
+- **Direct Edges**: Tools always route to coordinator (prevents circular routing)
+- **No More Loops**: Eliminated the `tools → agent` edge that caused infinite loops
 
 #### Suspend Node for Hop Limit Handling
 
@@ -292,9 +360,18 @@ The suspend node provides intelligent handling of hop limits:
 - **Preserves context** across the limit boundary
 
 When hop limits are reached, the workflow automatically routes through:
-`ToolNode → SuspendNode → Finalizer → END`
+`ToolNode → SuspendNode → Finalizer → DONE`
 
 This ensures the AI can communicate with users about incomplete processing and provide helpful context.
+
+#### Coordinator Response Enforcement
+
+The coordinator now enforces proper routing by ensuring all responses go through the finalizer node:
+
+- **No Direct Answers**: The coordinator never answers questions directly
+- **Consistent Flow**: All responses route through the finalizer for proper synthesis
+- **Content Cleanup**: Removes any direct response content from the coordinator
+- **Proper Routing**: Maintains the intended conversation flow through the finalizer
 
 #### Core Wiring (excerpt)
 
@@ -329,6 +406,40 @@ def _create_plugin_bundle(self, contract: PluginContract) -> bool:
 ```
 
 This is where tools, the bound model, and the agent node are produced and attached to the graph.
+
+#### New Graph Edge Integration
+
+The orchestrator now uses the plugin bundle's edge definitions:
+
+```python
+def _add_plugin_routing_edges(self, graph: StateGraph) -> None:
+    """Add edges from plugin agents back to coordinator using bundle edge definitions."""
+    for plugin_bundle in self.plugin_manager.plugin_bundles.values():
+        edges = plugin_bundle.get_graph_edges()
+        
+        self.logger.debug(f"Adding edges for plugin {plugin_bundle.metadata.name}: {edges}")
+        
+        # Add conditional edges for agent routing decisions
+        for node_name, edge_config in edges["conditional_edges"].items():
+            self.logger.debug(f"Adding conditional edge: {node_name} -> {edge_config['mapping']}")
+            graph.add_conditional_edges(
+                node_name,
+                edge_config["condition"],
+                edge_config["mapping"]
+            )
+        
+        # Add direct edges for tool execution flow
+        for from_node, to_node in edges["direct_edges"]:
+            self.logger.debug(f"Adding direct edge: {from_node} -> {to_node}")
+            graph.add_edge(from_node, to_node)
+```
+
+This ensures that:
+
+- **Conditional Routing**: Agent decisions control the flow based on `should_continue`
+- **No Circular Routing**: Tools always route to coordinator, never back to agent
+- **Consistent Flow**: All responses follow the same routing path
+- **Better Debugging**: Logs show exactly what edges are being created
 
 ### Plugin Loading Flow
 

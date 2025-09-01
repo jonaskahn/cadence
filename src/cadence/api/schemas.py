@@ -16,7 +16,7 @@ class ChatRequest(BaseModel):
     message: str = Field(
         ..., description="User message to be processed by the multi-agent system", min_length=1, max_length=10000
     )
-    session_id: Optional[str] = Field(
+    thread_id: Optional[str] = Field(
         default=None, description="Optional session identifier for conversation threading", max_length=255
     )
     metadata: Optional[Dict[str, Any]] = Field(
@@ -33,7 +33,7 @@ class ChatResponse(BaseModel):
     """Agent response with session information."""
 
     response: str = Field(..., description="Agent's response to the user message")
-    session_id: str = Field(..., description="Session identifier for conversation threading")
+    thread_id: str = Field(..., description="Session identifier for conversation threading")
     metadata: Optional[Dict[str, Any]] = Field(
         default=None, description="Optional processing metadata (agent, tokens, timing)"
     )

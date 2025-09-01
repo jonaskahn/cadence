@@ -58,7 +58,7 @@ def create_api_client(api_base_url: str) -> CadenceApiClient:
 
 
 def send_chat_message(
-        api_client: CadenceApiClient, user_message: str, user_id: str, org_id: str, response_tone: str
+    api_client: CadenceApiClient, user_message: str, user_id: str, org_id: str, response_tone: str
 ) -> ChatResult:
     """Send chat message to API and return response with error handling."""
     try:
