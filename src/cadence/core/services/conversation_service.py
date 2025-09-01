@@ -77,7 +77,8 @@ class ConversationService(Loggable):
         agent_state: AgentState = {
             "messages": langgraph_context,
             "current_agent": "coordinator",
-            "hops": 0,
+            "agent_hops": 0,
+            "tool_hops": 0,
             "session_id": thread.thread_id,
             "plugin_context": {},
             "agents_used": [],
@@ -107,8 +108,8 @@ class ConversationService(Loggable):
             user_tokens=user_token_count,
             assistant_tokens=assistant_token_count,
             metadata={
-                "agent_hops": orchestrator_result.get("agent_hops", 0),
-                "tool_hops": orchestrator_result.get("tool_hops", 0),
+                "agent_hops": processing_metadata.get("agent_hops", 0),
+                "tool_hops": processing_metadata.get("tool_hops", 0),
                 "processing_time": processing_metadata.get("processing_time"),
                 "tools_used": processing_metadata.get("tools_used", []),
                 "routing_history": processing_metadata.get("routing_history", []),
@@ -131,8 +132,8 @@ class ConversationService(Loggable):
                 total_tokens=user_token_count + assistant_token_count,
             ),
             metadata={
-                "agent_hops": orchestrator_result.get("agent_hops", 0),
-                "tool_hops": orchestrator_result.get("tool_hops", 0),
+                "agent_hops": processing_metadata.get("agent_hops", 0),
+                "tool_hops": processing_metadata.get("tool_hops", 0),
                 "multi_agent": len(set(processing_metadata.get("routing_history", []))) > 1,
                 "tools_used": processing_metadata.get("tools_used", []),
                 "processing_time": processing_metadata.get("processing_time"),
@@ -203,8 +204,16 @@ class ConversationService(Loggable):
                     elif hasattr(tool_call, "name"):
                         tools_used.append(tool_call.name)
 
+        agent_tools = [tool for tool in tools_used if not tool.startswith("goto_")]
+        routing_tools = [tool for tool in tools_used if tool.startswith("goto_") and tool != "goto_finalize"]
+
+        tool_hops = len(agent_tools)
+        agent_hops = len(routing_tools)
+
         return {
             "tools_used": tools_used,
+            "tool_hops": tool_hops,
+            "agent_hops": agent_hops,
             "routing_history": orchestrator_result.get("plugin_context", {}).get("routing_history", []),
             "processing_time": None,
             "model_used": "default",

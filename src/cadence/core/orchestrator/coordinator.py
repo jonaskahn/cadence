@@ -145,7 +145,7 @@ class MultiAgentOrchestrator(Loggable):
         plugin_manager: SDKPluginManager,
         llm_factory: LLMModelFactory,
         settings: Settings,
-        checkpointer: Any | None = None,
+        checkpointer: Any | None=None,
     ) -> None:
         super().__init__()
         self.plugin_manager = plugin_manager
@@ -215,7 +215,8 @@ class MultiAgentOrchestrator(Loggable):
     async def ask(self, state: AgentState) -> AgentState:
         """Process conversation state through multi-agent workflow."""
         try:
-            return await self.graph.ainvoke(state)
+            config = {"recursion_limit": self.settings.graph_recursion_limit}
+            return await self.graph.ainvoke(state, config)
         except Exception as e:
             self.logger.error(f"Error in conversation processing: {e}")
             self.logger.error(traceback.format_exc())
@@ -357,7 +358,20 @@ class MultiAgentOrchestrator(Loggable):
 
         coordinator_response = self.coordinator_model.invoke([system_message] + safe_messages)
 
-        return self._create_state_update(coordinator_response, state.get("agent_hops", 0), state)
+        current_agent_hops = state.get("agent_hops", 0)
+        is_routing_to_agent = self._has_tool_calls({"messages": [coordinator_response]})
+
+        if is_routing_to_agent:
+            tool_calls = getattr(coordinator_response, "tool_calls", [])
+            if tool_calls:
+                first_tool_name = (
+                    tool_calls[0].get("name") if isinstance(tool_calls[0], dict) else getattr(tool_calls[0], "name", "")
+                )
+                is_not_finalize_call = first_tool_name and first_tool_name != "goto_finalize"
+                if is_not_finalize_call:
+                    current_agent_hops += 1
+
+        return self._create_state_update(coordinator_response, current_agent_hops, state)
 
     def _suspend_node(self, state: AgentState) -> AgentState:
         """Handle graceful conversation termination when hop limits are exceeded."""
@@ -443,14 +457,14 @@ class MultiAgentOrchestrator(Loggable):
         found_tool_responses = set()
         look_ahead_limit = min(message_index + 10, len(messages))
 
-        for next_message in messages[message_index + 1 : look_ahead_limit]:
+        for next_message in messages[message_index + 1: look_ahead_limit]:
             if hasattr(next_message, "tool_call_id") and next_message.tool_call_id:
                 found_tool_responses.add(next_message.tool_call_id)
 
         return found_tool_responses
 
     @staticmethod
-    def _create_state_update(message: AIMessage, agent_hops: int, state: Dict[str, Any] = None) -> Dict[str, Any]:
+    def _create_state_update(message: AIMessage, agent_hops: int, state: Dict[str, Any]=None) -> Dict[str, Any]:
         """Create standardized state update structure for graph node responses."""
         update = {
             "messages": [message],
