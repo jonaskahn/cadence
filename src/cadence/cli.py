@@ -114,6 +114,93 @@ def ui(ctx, port: int, api_url: str):
         sys.exit(1)
 
 
+@start.command()
+@click.option("--api-host", default="0.0.0.0", help="Host for API server")
+@click.option("--api-port", default=8000, type=int, help="Port for API server")
+@click.option("--ui-port", default=8501, type=int, help="Port for Streamlit UI")
+@click.option("--reload", is_flag=True, help="Enable auto-reload for API")
+@click.option("--workers", default=1, type=int, help="Number of API worker processes")
+@click.pass_context
+def all(ctx, api_host: str, api_port: int, ui_port: int, reload: bool, workers: int):
+    """Start both Cadence AI API server and UI simultaneously."""
+    try:
+        console.print(
+            Panel.fit(
+                f"Starting Cadence AI Complete Stack\nAPI: {api_host}:{api_port} | UI: localhost:{ui_port}",
+                title="🚀 Full Stack Startup",
+                border_style="green",
+            )
+        )
+
+        # Set environment variables
+        os.environ["CADENCE_API_BASE_URL"] = f"http://{api_host}:{api_port}"
+        if ctx.obj["debug"]:
+            os.environ["CADENCE_DEBUG"] = "true"
+            reload = True
+
+        # Start API server in background
+        from cadence.config.settings import Settings
+        from cadence.main import CadenceApplication
+
+        settings = Settings()
+        settings.api_host = api_host
+        settings.api_port = api_port
+        settings.debug = ctx.obj["debug"]
+
+        app = CadenceApplication(settings)
+
+        # Start API server in background thread
+        import threading
+        import time
+
+        def start_api():
+            try:
+                app.run(host=api_host, port=api_port)
+            except Exception as e:
+                console.print(f"[red]API Server Error: {e}[/red]")
+
+        api_thread = threading.Thread(target=start_api, daemon=True)
+        api_thread.start()
+
+        console.print(f"[green]✅ API Server started on {api_host}:{api_port}[/green]")
+
+        # Wait a moment for API to start
+        time.sleep(2)
+
+        # Start UI
+        ui_app_path = Path(__file__).parent / "ui" / "app.py"
+
+        if not ui_app_path.exists():
+            console.print(f"[red]UI app not found at: {ui_app_path}[/red]")
+            sys.exit(1)
+
+        console.print(f"[blue]🎨 Starting UI on port {ui_port}...[/blue]")
+
+        cmd = [
+            sys.executable,
+            "-m",
+            "streamlit",
+            "run",
+            str(ui_app_path),
+            "--server.port",
+            str(ui_port),
+            "--server.headless",
+            "true",
+        ]
+
+        try:
+            subprocess.run(cmd)
+        except KeyboardInterrupt:
+            console.print("\n[yellow]Shutting down...[/yellow]")
+        finally:
+            # Note: API server runs as daemon thread, will be cleaned up automatically
+            console.print("[green]✅ API Server stopped[/green]")
+
+    except Exception as e:
+        console.print(f"[red]Error starting full stack: {e}[/red]")
+        sys.exit(1)
+
+
 @cli.command()
 @click.option("--host", default="0.0.0.0", help="Host to bind to")
 @click.option("--port", default=8000, type=int, help="Port to bind to")
