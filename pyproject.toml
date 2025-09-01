@@ -4,7 +4,7 @@ build-backend = "poetry.core.masonry.api"
 
 [project]
 name = "cadence"
-version = "1.0.2"
+version = "1.0.3"
 description = "Cadence AI - Multi-agent AI orchestration system with plugin management"
 authors = [
     { name = "Jonas Kahn", email = "me@ifelse.one" }

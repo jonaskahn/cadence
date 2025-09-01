@@ -103,7 +103,7 @@ The brain of the system that coordinates agent interactions:
 - **Agent Routing**: Intelligent routing to appropriate agents with hop limit handling and message filtering
 - **State Management**: Persistent conversation and workflow state with standardized updates
 - **Safety Features**: Tool execution logging, message filtering, and error handling
-- **Dynamic Configuration**: Separate model configurations for coordinator and finalizer roles
+- **Dynamic Configuration**: Separate model configurations for coordinator, suspend, and finalizer roles
 - **Error Handling**: Graceful failure recovery and fallbacks
 - **Performance Optimization**: Caching and resource management
 - **Suspend Node**: Intelligent handling of hop limits with AI communication

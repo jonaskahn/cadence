@@ -300,12 +300,24 @@ class MultiAgentOrchestrator(Loggable):
         graph.add_conditional_edges(GraphNodeNames.CONTROL_TOOLS, self._determine_plugin_route, route_mapping)
 
     def _add_plugin_routing_edges(self, graph: StateGraph) -> None:
-        """Add edges from plugin agents back to coordinator."""
+        """Add edges from plugin agents back to coordinator using bundle edge definitions."""
         for plugin_bundle in self.plugin_manager.plugin_bundles.values():
-            plugin_name = plugin_bundle.metadata.name
+            edges = plugin_bundle.get_graph_edges()
+            
+            self.logger.debug(f"Adding edges for plugin {plugin_bundle.metadata.name}: {edges}")
 
-            graph.add_edge(f"{plugin_name}_agent", f"{plugin_name}_tools")
-            graph.add_edge(f"{plugin_name}_tools", GraphNodeNames.COORDINATOR)
+            for node_name, edge_config in edges["conditional_edges"].items():
+                self.logger.debug(f"Adding conditional edge: {node_name} -> {edge_config['mapping']}")
+                graph.add_conditional_edges(
+                    node_name,
+                    edge_config["condition"],
+                    edge_config["mapping"]
+                )
+            
+            # Add direct edges for tool execution flow
+            for from_node, to_node in edges["direct_edges"]:
+                self.logger.debug(f"Adding direct edge: {from_node} -> {to_node}")
+                graph.add_edge(from_node, to_node)
 
     def _coordinator_routing_logic(self, state: AgentState) -> str:
         """Determine next step in conversation flow based on current state."""
