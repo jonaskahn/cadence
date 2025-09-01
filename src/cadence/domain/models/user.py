@@ -10,14 +10,14 @@ class User(BaseModel):
     """User entity with identity, lifecycle, and activity tracking."""
 
     def __init__(
-            self,
-            user_id: str,
-            org_id: str = "public",
-            display_name: Optional[str] = None,
-            created_at: Optional[datetime] = None,
-            last_active: Optional[datetime] = None,
-            is_active: bool = True,
-            **data: Any,
+        self,
+        user_id: str,
+        org_id: str = "public",
+        display_name: Optional[str] = None,
+        created_at: Optional[datetime] = None,
+        last_active: Optional[datetime] = None,
+        is_active: bool = True,
+        **data: Any,
     ):
         super().__init__(**data)
         if not user_id.strip():

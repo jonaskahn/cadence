@@ -103,7 +103,7 @@ The brain of the system that coordinates agent interactions:
 - **Agent Routing**: Intelligent routing to appropriate agents with hop limit handling and message filtering
 - **State Management**: Persistent conversation and workflow state with standardized updates
 - **Safety Features**: Tool execution logging, message filtering, and error handling
-- **Dynamic Configuration**: Separate model configurations for coordinator and finalizer roles
+- **Dynamic Configuration**: Separate model configurations for coordinator, suspend, and finalizer roles
 - **Error Handling**: Graceful failure recovery and fallbacks
 - **Performance Optimization**: Caching and resource management
 - **Suspend Node**: Intelligent handling of hop limits with AI communication
@@ -136,12 +136,12 @@ Manages connections to various language models:
 Cadence aggregates plugins from two sources at startup:
 
 - Pip-installed packages (environment packages)
-    - Discovered via the SDK registry when packages that depend on `cadence_sdk` are present
-    - Import of the package triggers `register_plugin(...)`
-    - No extra configuration needed beyond having the package installed
+  - Discovered via the SDK registry when packages that depend on `cadence_sdk` are present
+  - Import of the package triggers `register_plugin(...)`
+  - No extra configuration needed beyond having the package installed
 
 - Directory-based packages (filesystem)
-    - Controlled via environment variable `CADENCE_PLUGINS_DIR`
+  - Controlled via environment variable `CADENCE_PLUGINS_DIR`
 
 ```bash
 # Single directory
@@ -269,7 +269,7 @@ flowchart LR
     ToolNode --> AgentNode
     AgentNode -- "should_continue = back" --> Coordinator
     Coordinator --> ToolNode
-    ToolNode -- "hop limit reached" --> SuspendNode
+    ToolNode -- "agent hop limit reached" --> SuspendNode
     ToolNode -- "normal routing" --> AgentNode
     SuspendNode --> Finalizer
 ```
@@ -292,9 +292,18 @@ The suspend node provides intelligent handling of hop limits:
 - **Preserves context** across the limit boundary
 
 When hop limits are reached, the workflow automatically routes through:
-`ToolNode → SuspendNode → Finalizer → END`
+`ToolNode → SuspendNode → Finalizer → DONE`
 
 This ensures the AI can communicate with users about incomplete processing and provide helpful context.
+
+#### Coordinator Response Enforcement
+
+The coordinator now enforces proper routing by ensuring all responses go through the finalizer node:
+
+- **No Direct Answers**: The coordinator never answers questions directly
+- **Consistent Flow**: All responses route through the finalizer for proper synthesis
+- **Content Cleanup**: Removes any direct response content from the coordinator
+- **Proper Routing**: Maintains the intended conversation flow through the finalizer
 
 #### Core Wiring (excerpt)
 

@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional
 import redis.asyncio as redis
 
 from cadence.domain.models import Conversation
+
 from ...repositories.conversation_repository import ConversationRepository
 
 logger = logging.getLogger(__name__)
@@ -86,31 +87,31 @@ class RedisConversationRepository(ConversationRepository):
         return self.conversations_sorted.format(sort_by=sort_by)
 
     async def _queue_conversation_hash_and_ttl(
-            self,
-            pipe,
-            conversation_key: str,
-            conversation_data: Any,
+        self,
+        pipe,
+        conversation_key: str,
+        conversation_data: Any,
     ) -> None:
         """Queue storing the conversation hash and setting TTL."""
         await pipe.hset(conversation_key, mapping=conversation_data)
         await pipe.expire(conversation_key, self.ttl_seconds)
 
     async def _queue_thread_index(
-            self,
-            pipe,
-            thread_key: str,
-            conversation_id: str,
+        self,
+        pipe,
+        thread_key: str,
+        conversation_id: str,
     ) -> None:
         """Queue adding conversation to its thread index and set TTL."""
         await pipe.sadd(thread_key, conversation_id)
         await pipe.expire(thread_key, self.ttl_seconds)
 
     async def _queue_sorted_index(
-            self,
-            pipe,
-            sorted_key: str,
-            member_id: str,
-            score: float,
+        self,
+        pipe,
+        sorted_key: str,
+        member_id: str,
+        score: float,
     ) -> None:
         """Queue adding the conversation to a sorted set and set TTL."""
         await pipe.zadd(sorted_key, {member_id: score})
@@ -136,10 +137,10 @@ class RedisConversationRepository(ConversationRepository):
         await pipe.incr(self.conversation_counter)
 
     async def _queue_delete_conversation_artifacts(
-            self,
-            pipe,
-            conversation: Conversation,
-            sorted_key: str,
+        self,
+        pipe,
+        conversation: Conversation,
+        sorted_key: str,
     ) -> None:
         """Queue deletion of a conversation and all related index entries."""
         conversation_key = self._get_conversation_key(conversation.id)
@@ -231,7 +232,7 @@ class RedisConversationRepository(ConversationRepository):
             return None
 
     async def get_conversation_history(
-            self, thread_id: str, limit: int = 50, before_id: Optional[str] = None
+        self, thread_id: str, limit: int = 50, before_id: Optional[str] = None
     ) -> List[Conversation]:
         """Get conversation history for a thread ordered by creation time.
 
@@ -285,7 +286,7 @@ class RedisConversationRepository(ConversationRepository):
         return await self.redis.scard(thread_key)
 
     async def get_recent_conversations(
-            self, user_id: Optional[str] = None, org_id: Optional[str] = None, limit: int = 10, hours_back: int = 24
+        self, user_id: Optional[str] = None, org_id: Optional[str] = None, limit: int = 10, hours_back: int = 24
     ) -> List[Conversation]:
         """Get recent conversations across threads using Redis sorted sets.
 
@@ -333,7 +334,7 @@ class RedisConversationRepository(ConversationRepository):
         return conversations
 
     async def search_conversations(
-            self, query: str, thread_id: Optional[str] = None, user_id: Optional[str] = None, limit: int = 20
+        self, query: str, thread_id: Optional[str] = None, user_id: Optional[str] = None, limit: int = 20
     ) -> List[Conversation]:
         """Search conversations by content.
 
@@ -380,8 +381,8 @@ class RedisConversationRepository(ConversationRepository):
                     continue
 
                 if (
-                        query_lower in conversation.user_message.lower()
-                        or query_lower in conversation.assistant_message.lower()
+                    query_lower in conversation.user_message.lower()
+                    or query_lower in conversation.assistant_message.lower()
                 ):
                     matching_conversations.append(conversation)
 
@@ -392,12 +393,12 @@ class RedisConversationRepository(ConversationRepository):
         return matching_conversations[:limit]
 
     async def get_conversation_statistics(
-            self,
-            thread_id: Optional[str] = None,
-            user_id: Optional[str] = None,
-            org_id: Optional[str] = None,
-            start_date: Optional[datetime] = None,
-            end_date: Optional[datetime] = None,
+        self,
+        thread_id: Optional[str] = None,
+        user_id: Optional[str] = None,
+        org_id: Optional[str] = None,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
     ) -> Dict[str, Any]:
         """Get conversation statistics using Redis operations.
 

@@ -20,7 +20,7 @@ Cadence plugins are self-contained packages discovered via the SDK registry. Eac
 The coordinator offers `goto_{plugin}` tools generated from plugin metadata plus a `finalize` tool. After agents act:
 
 - `should_continue(state)` returns `continue` to call tools or `back` to return to coordinator
-- Hop limits: `max_agent_hops` and `max_tool_hops` enforce limits; a `suspend` node explains limits to users
+- Hop limits: `max_agent_hops` enforces limits; a `suspend` node explains limits to users
 
 ## Configuration
 

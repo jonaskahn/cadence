@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 import redis.asyncio as redis
 
 from cadence.domain.models import Thread, ThreadStatus
+
 from ...repositories.thread_repository import ThreadRepository
 
 logger = logging.getLogger(__name__)
@@ -188,14 +189,14 @@ class RedisThreadRepository(ThreadRepository):
         return True
 
     async def list_threads(
-            self,
-            user_id: Optional[str] = None,
-            org_id: Optional[str] = None,
-            status: Optional[ThreadStatus] = None,
-            limit: int = 20,
-            offset: int = 0,
-            sort_by: str = "updated_at",
-            sort_order: str = "desc",
+        self,
+        user_id: Optional[str] = None,
+        org_id: Optional[str] = None,
+        status: Optional[ThreadStatus] = None,
+        limit: int = 20,
+        offset: int = 0,
+        sort_by: str = "updated_at",
+        sort_order: str = "desc",
     ) -> List[Thread]:
         """List threads with filtering and pagination using Redis sets.
 
@@ -238,7 +239,7 @@ class RedisThreadRepository(ThreadRepository):
         else:
             sorted_thread_ids = await self.redis.zrange(sorted_key, 0, -1)
         filtered_ids = [tid for tid in sorted_thread_ids if tid in thread_ids]
-        paginated_ids = filtered_ids[offset: offset + limit]
+        paginated_ids = filtered_ids[offset : offset + limit]
         threads = []
         for thread_id in paginated_ids:
             thread = await self.get_thread(thread_id)
@@ -248,7 +249,7 @@ class RedisThreadRepository(ThreadRepository):
         return threads
 
     async def count_threads(
-            self, user_id: Optional[str] = None, org_id: Optional[str] = None, status: Optional[ThreadStatus] = None
+        self, user_id: Optional[str] = None, org_id: Optional[str] = None, status: Optional[ThreadStatus] = None
     ) -> int:
         """Count threads matching filters using Redis sets."""
         thread_ids = set()

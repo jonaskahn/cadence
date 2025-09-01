@@ -134,7 +134,6 @@ CADENCE_DEBUG=true
 
 # Advanced Configuration
 CADENCE_MAX_AGENT_HOPS=25
-CADENCE_MAX_TOOL_HOPS=50
 CADENCE_GRAPH_RECURSION_LIMIT=50
 
 # Session Management
@@ -226,7 +225,7 @@ class MyPlugin(BasePlugin):
             description="My custom AI agent",
             capabilities=["custom_task"],
             agent_type="specialized",
-            dependencies=["cadence_sdk>=1.0.1,<2.0.0"],
+            dependencies=["cadence_sdk>=1.0.2,<2.0.0"],
         )
 
     @staticmethod

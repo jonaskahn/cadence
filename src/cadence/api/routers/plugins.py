@@ -9,9 +9,9 @@ from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from ...infrastructure.plugins.sdk_manager import SDKPluginManager
 from ..schemas import PluginInfo
 from ..services import global_service_container
-from ...infrastructure.plugins.sdk_manager import SDKPluginManager
 
 plugins_api_router = APIRouter()
 
@@ -47,7 +47,7 @@ async def list_available_plugins(plugin_manager: SDKPluginManager = Depends(get_
 
 @plugins_api_router.get("/plugins/{plugin_name}", response_model=PluginInfo)
 async def get_plugin_details(
-        plugin_name: str, plugin_manager: SDKPluginManager = Depends(get_plugin_manager)
+    plugin_name: str, plugin_manager: SDKPluginManager = Depends(get_plugin_manager)
 ) -> PluginInfo:
     """Retrieve detailed metadata and status for specified plugin."""
     plugin_bundle = plugin_manager.get_plugin_bundle(plugin_name)

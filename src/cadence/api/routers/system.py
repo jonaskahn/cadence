@@ -7,9 +7,9 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends
 
+from ...infrastructure.plugins.sdk_manager import SDKPluginManager
 from ..schemas import SystemStatus
 from ..services import global_service_container
-from ...infrastructure.plugins.sdk_manager import SDKPluginManager
 
 system_api_router = APIRouter()
 
@@ -21,7 +21,7 @@ def get_plugin_manager() -> SDKPluginManager:
 
 @system_api_router.get("/status", response_model=SystemStatus)
 async def get_comprehensive_system_status(
-        plugin_manager: SDKPluginManager = Depends(get_plugin_manager),
+    plugin_manager: SDKPluginManager = Depends(get_plugin_manager),
 ) -> SystemStatus:
     """Retrieve comprehensive system status and plugin health information."""
     return SystemStatus(

@@ -18,13 +18,13 @@ router.include_router(system.router, prefix="/system", tags=["system"])
 @router.get("/")
 async def root():
     """API root endpoint with service information."""
-    return {"message": "Welcome to Cadence AI Framework API", "version": "1.0.1", "docs": "/docs", "health": "/health"}
+    return {"message": "Welcome to Cadence AI Framework API", "version": "1.0.3", "docs": "/docs", "health": "/health"}
 
 
 @router.get("/health")
 async def health_check():
     """Service health check for monitoring systems."""
-    return {"status": "healthy", "service": "cadence-api", "version": "1.0.1"}
+    return {"status": "healthy", "service": "cadence-api", "version": "1.0.3"}
 
 
 async def initialize_api(settings: Settings) -> None:

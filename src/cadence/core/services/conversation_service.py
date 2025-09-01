@@ -9,11 +9,11 @@ from typing import Any, Dict, List, Optional
 
 from cadence_sdk.base.loggable import Loggable
 
-from ..orchestrator.coordinator import MultiAgentOrchestrator
 from ...domain.dtos.chat_dtos import ChatRequest, ChatResponse, TokenUsage
 from ...domain.models.conversation import Conversation
 from ...domain.models.thread import Thread, ThreadStatus
 from ...infrastructure.database.repositories import ConversationRepository, ThreadRepository
+from ..orchestrator.coordinator import MultiAgentOrchestrator
 
 
 class ConversationService(Loggable):
@@ -24,10 +24,10 @@ class ConversationService(Loggable):
     """
 
     def __init__(
-            self,
-            thread_repository: ThreadRepository,
-            conversation_repository: ConversationRepository,
-            orchestrator: MultiAgentOrchestrator,
+        self,
+        thread_repository: ThreadRepository,
+        conversation_repository: ConversationRepository,
+        orchestrator: MultiAgentOrchestrator,
     ):
         super().__init__()
         self.thread_repository = thread_repository
@@ -60,13 +60,13 @@ class ConversationService(Loggable):
         return thread
 
     async def _process_message_internal(
-            self,
-            thread: Thread,
-            message: str,
-            user_id: str,
-            org_id: str,
-            metadata: Optional[Dict[str, Any]] = None,
-            tone: Optional[str] = None,
+        self,
+        thread: Thread,
+        message: str,
+        user_id: str,
+        org_id: str,
+        metadata: Optional[Dict[str, Any]] = None,
+        tone: Optional[str] = None,
     ) -> ChatResponse:
         """Process message through orchestrator and store optimized conversation data."""
         conversation_history = await self.conversation_repository.get_conversation_history(thread.thread_id, limit=50)
@@ -78,10 +78,8 @@ class ConversationService(Loggable):
             "messages": langgraph_context,
             "current_agent": "coordinator",
             "agent_hops": 0,
-            "tool_hops": 0,
-            "session_id": thread.thread_id,
+            "thread_id": thread.thread_id,
             "plugin_context": {},
-            "agents_used": [],
             "metadata": {
                 "thread_id": thread.thread_id,
                 "user_id": user_id,
@@ -109,7 +107,6 @@ class ConversationService(Loggable):
             assistant_tokens=assistant_token_count,
             metadata={
                 "agent_hops": processing_metadata.get("agent_hops", 0),
-                "tool_hops": processing_metadata.get("tool_hops", 0),
                 "processing_time": processing_metadata.get("processing_time"),
                 "tools_used": processing_metadata.get("tools_used", []),
                 "routing_history": processing_metadata.get("routing_history", []),
@@ -133,7 +130,6 @@ class ConversationService(Loggable):
             ),
             metadata={
                 "agent_hops": processing_metadata.get("agent_hops", 0),
-                "tool_hops": processing_metadata.get("tool_hops", 0),
                 "multi_agent": len(set(processing_metadata.get("routing_history", []))) > 1,
                 "tools_used": processing_metadata.get("tools_used", []),
                 "processing_time": processing_metadata.get("processing_time"),
@@ -207,12 +203,10 @@ class ConversationService(Loggable):
         agent_tools = [tool for tool in tools_used if not tool.startswith("goto_")]
         routing_tools = [tool for tool in tools_used if tool.startswith("goto_") and tool != "goto_finalize"]
 
-        tool_hops = len(agent_tools)
         agent_hops = len(routing_tools)
 
         return {
             "tools_used": tools_used,
-            "tool_hops": tool_hops,
             "agent_hops": agent_hops,
             "routing_history": orchestrator_result.get("plugin_context", {}).get("routing_history", []),
             "processing_time": None,
@@ -267,7 +261,7 @@ class ConversationService(Loggable):
         return await self.thread_repository.archive_thread(thread_id)
 
     async def get_user_threads(
-            self, user_id: str, org_id: str, status: Optional[ThreadStatus] = None, limit: int = 20, offset: int = 0
+        self, user_id: str, org_id: str, status: Optional[ThreadStatus] = None, limit: int = 20, offset: int = 0
     ) -> List[Thread]:
         """Get threads for a specific user.
 
@@ -286,7 +280,7 @@ class ConversationService(Loggable):
         )
 
     async def search_conversations(
-            self, query: str, user_id: Optional[str] = None, thread_id: Optional[str] = None, limit: int = 20
+        self, query: str, user_id: Optional[str] = None, thread_id: Optional[str] = None, limit: int = 20
     ) -> List[Conversation]:
         """Search conversation content.
 
@@ -304,11 +298,11 @@ class ConversationService(Loggable):
         )
 
     async def get_conversation_statistics(
-            self,
-            user_id: Optional[str] = None,
-            org_id: Optional[str] = None,
-            start_date: Optional[datetime] = None,
-            end_date: Optional[datetime] = None,
+        self,
+        user_id: Optional[str] = None,
+        org_id: Optional[str] = None,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
     ) -> Dict[str, Any]:
         """Get conversation statistics.
 

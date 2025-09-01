@@ -21,7 +21,7 @@ console = Console()
 
 
 @click.group()
-@click.version_option(version="1.0.1", prog_name="cadence")
+@click.version_option(version="1.0.3", prog_name="cadence")
 @click.option("--debug", is_flag=True, help="Enable debug mode")
 @click.option("--config", type=click.Path(exists=True), help="Path to configuration file")
 @click.pass_context
@@ -297,7 +297,6 @@ def config(ctx):
         table.add_row("LLM Provider", settings.default_llm_provider, "Default LLM provider")
         table.add_row("Storage Backend", settings.conversation_storage_backend, "Conversation storage")
         table.add_row("Max Agent Hops", str(settings.max_agent_hops), "Maximum agent switches")
-        table.add_row("Max Tool Hops", str(settings.max_tool_hops), "Maximum tool calls")
 
         console.print(table)
 
