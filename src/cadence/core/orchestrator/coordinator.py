@@ -74,7 +74,7 @@ class ConversationPrompts:
     COORDINATOR_INSTRUCTIONS = """Your goal is to analyze queries and decide which agent to route to from the **AVAILABLE AGENTS**.
 **AVAILABLE AGENTS**
 {plugin_descriptions}
-- finalize: Call when you think the answer for the user query/question is ready or no suitable agents.
+- finalize: Call when you think the answer for the user query/question is ready, simple greeting questions, etc, and no suitable agents.
 **DECISION OUTPUT**
 - Choose ONE of: {tool_options} | goto_finalize"""
 
@@ -141,11 +141,11 @@ class MultiAgentOrchestrator(Loggable):
     """Coordinates multi-agent conversations using LangGraph with dynamic plugin integration."""
 
     def __init__(
-        self,
-        plugin_manager: SDKPluginManager,
-        llm_factory: LLMModelFactory,
-        settings: Settings,
-        checkpointer: Any | None=None,
+            self,
+            plugin_manager: SDKPluginManager,
+            llm_factory: LLMModelFactory,
+            settings: Settings,
+            checkpointer: Any | None = None,
     ) -> None:
         super().__init__()
         self.plugin_manager = plugin_manager
@@ -154,6 +154,7 @@ class MultiAgentOrchestrator(Loggable):
         self.checkpointer = checkpointer
 
         self.coordinator_model = self._create_coordinator_model()
+        self.suspend_model = self._create_suspend_model()
         self.finalizer_model = self._create_finalizer_model()
         self.graph = self._build_conversation_graph()
 
@@ -162,26 +163,57 @@ class MultiAgentOrchestrator(Loggable):
         from ...infrastructure.llm.providers import ModelConfig
 
         control_tools = self.plugin_manager.get_coordinator_tools()
+
+        # Use coordinator-specific provider if configured, otherwise fallback to default
+        provider = self.settings.coordinator_llm_provider or self.settings.default_llm_provider
+        model_name = self.settings.get_default_provider_llm_model(provider)
+        temperature = self.settings.coordinator_temperature
+        max_tokens = self.settings.coordinator_max_tokens
+
         model_config = ModelConfig(
-            provider=self.settings.default_llm_provider,
-            model_name=self.settings.get_default_provider_llm_model(),
-            temperature=self.settings.default_llm_temperature,
-            max_tokens=self.settings.default_llm_context_window,
+            provider=provider,
+            model_name=model_name,
+            temperature=temperature,
+            max_tokens=max_tokens,
         )
 
         base_model = self.llm_factory.create_base_model(model_config)
-
         return base_model.bind_tools(control_tools, parallel_tool_calls=True)
+
+    def _create_suspend_model(self):
+        """Create LLM model for suspend node with fallback to default."""
+        from ...infrastructure.llm.providers import ModelConfig
+
+        # Use suspend-specific provider if configured, otherwise fallback to default
+        provider = self.settings.suspend_llm_provider or self.settings.default_llm_provider
+        model_name = self.settings.get_default_provider_llm_model(provider)
+        temperature = self.settings.suspend_temperature
+        max_tokens = self.settings.suspend_max_tokens
+
+        model_config = ModelConfig(
+            provider=provider,
+            model_name=model_name,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+
+        return self.llm_factory.create_base_model(model_config)
 
     def _create_finalizer_model(self):
         """Create LLM model for synthesizing final responses."""
         from ...infrastructure.llm.providers import ModelConfig
 
+        # Use finalizer-specific provider if configured, otherwise fallback to default
+        provider = self.settings.finalizer_llm_provider or self.settings.default_llm_provider
+        model_name = self.settings.get_finalizer_provider_llm_model(provider)
+        temperature = self.settings.finalizer_temperature
+        max_tokens = self.settings.finalizer_max_tokens
+
         model_config = ModelConfig(
-            provider=self.settings.finalizer_llm_provider,
-            model_name=self.settings.get_finalizer_provider_llm_model(),
-            temperature=self.settings.finalizer_temperature,
-            max_tokens=self.settings.finalizer_max_tokens,
+            provider=provider,
+            model_name=model_name,
+            temperature=temperature,
+            max_tokens=max_tokens,
         )
 
         return self.llm_factory.create_base_model(model_config)
@@ -382,7 +414,8 @@ class MultiAgentOrchestrator(Loggable):
             content=ConversationPrompts.HOP_LIMIT_REACHED.format(current=current_hops, maximum=max_hops)
         )
 
-        suspension_response = self._invoke_model_with_prompt(suspension_message, state["messages"])
+        safe_messages = self._filter_safe_messages(state["messages"])
+        suspension_response = self.suspend_model.invoke([suspension_message] + safe_messages)
         return self._create_state_update(suspension_response, current_hops, state)
 
     def _finalizer_node(self, state: AgentState) -> AgentState:
@@ -401,7 +434,8 @@ class MultiAgentOrchestrator(Loggable):
 
         return self._create_state_update(final_response, state.get("agent_hops", 0), state)
 
-    def _get_tone_instruction(self, tone: str) -> str:
+    @staticmethod
+    def _get_tone_instruction(tone: str) -> str:
         """Return appropriate tone instruction based on requested response style."""
         return ResponseTone.get_description(tone)
 
@@ -464,7 +498,7 @@ class MultiAgentOrchestrator(Loggable):
         return found_tool_responses
 
     @staticmethod
-    def _create_state_update(message: AIMessage, agent_hops: int, state: Dict[str, Any]=None) -> Dict[str, Any]:
+    def _create_state_update(message: AIMessage, agent_hops: int, state: Dict[str, Any] = None) -> Dict[str, Any]:
         """Create standardized state update structure for graph node responses."""
         update = {
             "messages": [message],

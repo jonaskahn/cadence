@@ -65,6 +65,7 @@ Implements the AI agent behavior:
 - State management and decision making
 - LLM model binding
 - Response tone adaptation (inherited from orchestrator)
+- Must inherit from `BaseAgent` and implement required methods
 
 ### 3. Tools
 
@@ -74,6 +75,7 @@ Functions that agents can call:
 - External API integration
 - Data transformation
 - Error handling and logging
+- Must be decorated with `@tool` decorator from `cadence_sdk`
 
 ## Plugin Lifecycle
 
@@ -97,6 +99,22 @@ sequenceDiagram
 ```
 
 ## Plugin Requirements
+
+### Correct Import Patterns
+
+```python
+# Main imports - recommended approach
+from cadence_sdk import BasePlugin, PluginMetadata, BaseAgent, tool
+
+# Alternative specific imports if needed
+from cadence_sdk.base.plugin import BasePlugin
+from cadence_sdk.base.metadata import PluginMetadata
+from cadence_sdk.base.agent import BaseAgent
+from cadence_sdk.tools.decorators import tool
+```
+
+**Important**: Always use the main `cadence_sdk` import for the core classes and `tool` decorator. The specific
+submodule imports are available but not recommended for most use cases.
 
 ### Required Methods
 
@@ -152,7 +170,7 @@ Essential information for each plugin:
 ```python
 PluginMetadata(
     name="my_agent",
-    version="0.1.0",
+    version="1.0.0",
     description="Description of what this agent does",
     capabilities=["capability1", "capability2"],
     llm_requirements={
@@ -162,9 +180,80 @@ PluginMetadata(
         "max_tokens": 1024
     },
     agent_type="specialized",
-    dependencies=["external-package>=0.1.0"],
-    
+    dependencies=["cadence_sdk>=1.0.1,<2.0.0"],
 )
+```
+
+## Complete Plugin Example
+
+Here's a complete example of a math plugin implementation:
+
+### `__init__.py`
+
+```python
+from cadence_sdk import register_plugin
+from .plugin import MathPlugin
+
+register_plugin(MathPlugin)
+```
+
+### `plugin.py`
+
+```python
+from cadence_sdk import BasePlugin, PluginMetadata
+
+class MathPlugin(BasePlugin):
+    @staticmethod
+    def get_metadata() -> PluginMetadata:
+        return PluginMetadata(
+            name="mathematics",
+            version="1.0.1",
+            description="Mathematical calculations and arithmetic operations agent",
+            agent_type="specialized",
+            capabilities=["addition", "subtraction", "multiplication", "division"],
+            dependencies=["cadence_sdk>=1.0.1,<2.0.0"],
+        )
+
+    @staticmethod
+    def create_agent():
+        from .agent import MathAgent
+        return MathAgent(MathPlugin.get_metadata())
+```
+
+### `agent.py`
+
+```python
+from cadence_sdk import BaseAgent
+from cadence_sdk.base.metadata import PluginMetadata
+
+class MathAgent(BaseAgent):
+    def __init__(self, metadata: PluginMetadata):
+        super().__init__(metadata)
+
+    def get_tools(self):
+        from .tools import math_tools
+        return math_tools
+
+    def get_system_prompt(self) -> str:
+        return "You are a math agent specialized in mathematical operations."
+```
+
+### `tools.py`
+
+```python
+from cadence_sdk import tool
+
+@tool
+def add(a: int, b: int) -> int:
+    """Add two numbers together."""
+    return a + b
+
+@tool
+def multiply(a: int, b: int) -> int:
+    """Multiply two numbers together."""
+    return a * b
+
+math_tools = [add, multiply]
 ```
 
 ## Development Workflow
@@ -179,7 +268,7 @@ PluginMetadata(
 
 - Create plugin structure
 - Implement agent logic
-- Develop tool functions
+- Develop tool functions with `@tool` decorator
 - Add error handling
 
 ### 3. **Testing Phase**

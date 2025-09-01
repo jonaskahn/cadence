@@ -4,7 +4,9 @@ Welcome to Cadence — a powerful, open-source multi-agent orchestration system 
 deployment of AI agent workflows.
 
 - **Quick Start**: [Get up and running](getting-started/quick-start.md)
-- **Core Concepts**: [Understand the architecture](concepts/architecture.md), [LangGraph Architecture](concepts/langgraph-architecture.md)
+- **Core Concepts**:
+    - [Understand the architecture](concepts/architecture.md)
+    - [LangGraph Architecture](concepts/langgraph-architecture.md)
 - **Plugin Development**: [Build custom agents](plugins/overview.md)
 - **Deployment**: [Configure environments](deployment/environment.md)
 
@@ -61,9 +63,10 @@ Cadence is built on three core principles:
 ```mermaid
 flowchart TD
     U["Client Request (with tone)"] --> API["FastAPI API"]
-    API --> COORD["Coordinator (LangGraph)"]
+    API --> COORD["Enhanced Coordinator (LangGraph)"]
     COORD --> PM["SDK Plugin Manager"]
     COORD --> F["Finalizer (Tone-aware)"]
+    COORD --> SAFETY["Safety & Logging"]
 
     PM -->|discovers| B1["Plugin bundle: math_agent"]
     PM -->|discovers| B2["Plugin bundle: search_agent"]
@@ -87,8 +90,13 @@ flowchart TD
     A2 --> COORD
 
     %% LLM binding used inside AgentNode execution
-    A1 --> LLM[("LLM Model")]
+    A1 --> LLM[("LLM Models")]
     A2 --> LLM
+
+    %% Safety mechanisms
+    SAFETY --> HOP["Hop Limits"]
+    SAFETY --> FILTER["Message Filtering"]
+    SAFETY --> LOG["Execution Logging"]
 
     %% Finalizer handles tone-adapted responses
     F --> COORD
@@ -98,14 +106,18 @@ flowchart TD
 
 ## Key Features
 
-- **Multi-Agent Orchestration**: Coordinate multiple AI agents in complex workflows
-- **Plugin System**: Extend functionality without touching core code
-- **Hot Reloading**: Update plugins without restarting the system
-- **LLM Agnostic**: Support for OpenAI, Anthropic, Google, and more
+- **Multi-Agent Orchestration**: Coordinate multiple AI agents in complex workflows with intelligent routing
+- **Plugin System**: Extend functionality without touching core code with dynamic plugin discovery
+- **Hot Reloading**: Update plugins without restarting the system with automatic graph rebuilding
+- **LLM Agnostic**: Support for OpenAI, Anthropic, Google, and more with separate model configurations for coordinator,
+  suspend, and finalizer
 - **REST API**: Full HTTP API for integration with any system
 - **Operational API**: Endpoints for chat, plugins, status, and health
-- **Comprehensive Logging**: Built-in observability and debugging tools
-- **Tone Control**: Dynamic response style adaptation for personalized interactions
+- **Comprehensive Logging**: Built-in observability and debugging tools with detailed execution tracking
+- **Tone Control**: Dynamic response style adaptation for personalized interactions (natural, formal, concise,
+  explanatory, learning)
+- **Safety Mechanisms**: Hop limits, message filtering, and error handling to prevent infinite loops
+- **State Management**: Robust conversation state tracking with standardized updates
 
 ## Quick Example
 
@@ -145,7 +157,8 @@ class MyAgent(BaseAgent):
 
 ## Contributing
 
-Cadence is open source and welcomes contributions! Check out the [contributing guide](contributing/development.md) to get
+Cadence is open source and welcomes contributions! Check out the [contributing guide](contributing/development.md) to
+get
 started.
 
 ## License

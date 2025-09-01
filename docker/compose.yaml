@@ -1,20 +1,59 @@
 name: cadence
 services:
-  cadence:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile
+  memory:
+    image: redis:8-alpine
+    ports:
+      - "6379:6379"
+    command:
+      [
+        "redis-server",
+        "--appendonly",
+        "yes",
+        "--save",
+        "60",
+        "1",
+        "--loglevel",
+        "warning",
+      ]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cadence-network
+
+  app:
+    image: ifelsedotone/cadence:latest
+    restart: unless-stopped
     ports:
       - "8000:8000"
     environment:
       - CADENCE_DEBUG=true
       - CADENCE_API_HOST=0.0.0.0
       - CADENCE_API_PORT=8000
-      - CADENCE_PLUGINS_DIR=["/usr/src/cadence/plugins"]
+      - CADENCE_PLUGINS_DIR=/usr/src/cadence/plugins
+      - CADENCE_REDIS_URL=redis://memory:6379
     volumes:
       - ../plugins/src/cadence_example_plugins:/usr/src/cadence/plugins
+    depends_on:
+      memory:
+        condition: service_healthy
+    networks:
+      - cadence-network
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8000/ | grep -q 'Cadence AI'"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8000/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 40s
+
+networks:
+  cadence-network:
+    driver: bridge
+
+volumes:
+  redis-data:
+    driver: local

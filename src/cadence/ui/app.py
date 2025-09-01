@@ -58,7 +58,7 @@ def create_api_client(api_base_url: str) -> CadenceApiClient:
 
 
 def send_chat_message(
-    api_client: CadenceApiClient, user_message: str, user_id: str, org_id: str, response_tone: str
+        api_client: CadenceApiClient, user_message: str, user_id: str, org_id: str, response_tone: str
 ) -> ChatResult:
     """Send chat message to API and return response with error handling."""
     try:
@@ -173,7 +173,7 @@ def display_chat_messages():
     for chat_message in st.session_state.messages:
         with st.chat_message(chat_message["role"]):
             if chat_message["role"] == "assistant":
-                st.markdown(f"🤖 **AI Assistant**")
+                st.markdown(f"**AI Assistant**")
                 st.markdown(chat_message["content"])
 
                 if "metadata" in chat_message and chat_message["metadata"]:
@@ -235,7 +235,7 @@ def display_chat_messages():
 
     if st.session_state.is_processing:
         with st.chat_message("assistant"):
-            st.markdown(f"🤖 **AI Assistant**")
+            st.markdown(f"**AI Assistant**")
             st.markdown(get_ai_thinking_message())
 
 
@@ -436,7 +436,7 @@ def main():
 
     # Header
     st.markdown('<div class="main-header">', unsafe_allow_html=True)
-    st.title("🤖 Cadence AI")
+    st.title("🫆 Cadence AI")
     st.markdown("*Intelligent conversations powered by multi-agent AI*")
     st.markdown("</div>", unsafe_allow_html=True)
 

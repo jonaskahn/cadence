@@ -14,15 +14,15 @@ class Organization(BaseModel):
     """
 
     def __init__(
-        self,
-        org_id: str,
-        name: str,
-        created_at: Optional[datetime] = None,
-        is_active: bool = True,
-        settings: Optional[Dict[str, Any]] = None,
-        total_tokens_used: int = 0,
-        monthly_token_limit: Optional[int] = None,
-        **data: Any,
+            self,
+            org_id: str,
+            name: str,
+            created_at: Optional[datetime] = None,
+            is_active: bool = True,
+            settings: Optional[Dict[str, Any]] = None,
+            total_tokens_used: int = 0,
+            monthly_token_limit: Optional[int] = None,
+            **data: Any,
     ):
         super().__init__(**data)
         if not org_id.strip():

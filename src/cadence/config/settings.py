@@ -181,9 +181,9 @@ class Settings(BaseSettings):
         else:
             return False
 
-    def get_default_provider_llm_model(self) -> str:
+    @staticmethod
+    def get_default_provider_llm_model(provider: str) -> str:
         """Get the default model name for the configured LLM provider."""
-        provider = self.default_llm_provider.lower()
         if provider == "openai":
             return "gpt-4o-mini"
         elif provider == "anthropic":
@@ -193,9 +193,9 @@ class Settings(BaseSettings):
         else:
             return "gpt-4o-mini"  # fallback
 
-    def get_finalizer_provider_llm_model(self) -> str:
+    def get_finalizer_provider_llm_model(self, provider: str) -> str:
         """Get the model name for the finalizer LLM provider."""
-        return self.get_default_provider_llm_model()
+        return self.get_default_provider_llm_model(provider)
 
     def get_api_key_for_provider(self, provider: str) -> Optional[str]:
         """Get the API key for a specific provider."""
@@ -224,9 +224,39 @@ class Settings(BaseSettings):
         return 4096
 
     @property
-    def finalizer_llm_provider(self) -> str:
-        """Get the LLM provider for the finalizer."""
-        return self.default_llm_provider
+    def coordinator_llm_provider(self) -> Optional[str]:
+        """Get the LLM provider for the coordinator. Falls back to default if None."""
+        return None
+
+    @property
+    def coordinator_temperature(self) -> float:
+        """Get the temperature for the coordinator LLM."""
+        return 0.7
+
+    @property
+    def coordinator_max_tokens(self) -> int:
+        """Get the max tokens for the coordinator LLM."""
+        return 4096
+
+    @property
+    def suspend_llm_provider(self) -> Optional[str]:
+        """Get the LLM provider for the suspend node. Falls back to default if None."""
+        return None
+
+    @property
+    def suspend_temperature(self) -> float:
+        """Get the temperature for the suspend node LLM."""
+        return 0.5
+
+    @property
+    def suspend_max_tokens(self) -> int:
+        """Get the max tokens for the suspend node LLM."""
+        return 1024
+
+    @property
+    def finalizer_llm_provider(self) -> Optional[str]:
+        """Get the LLM provider for the finalizer. Falls back to default if None."""
+        return None
 
     @property
     def finalizer_temperature(self) -> float:

@@ -139,12 +139,12 @@ python -m cadence start all
    ```
 
 2. **Check the UI**
-   - Open `http://localhost:8501` in your browser
-   - The UI uses `CADENCE_API_BASE_URL` (default `http://localhost:8000`).
+    - Open `http://localhost:8501` in your browser
+    - The UI uses `CADENCE_API_BASE_URL` (default `http://localhost:8000`).
 
 3. **API Documentation**
-   - Swagger UI: `http://localhost:8000/docs`
-   - ReDoc: `http://localhost:8000/redoc`
+    - Swagger UI: `http://localhost:8000/docs`
+    - ReDoc: `http://localhost:8000/redoc`
 
 ## First Steps
 
@@ -190,16 +190,16 @@ cadence $CADENCE_OPENAI_API_KEY
 ### Common Issues
 
 1. **Port already in use**
-   - Change the port in your `.env` file
-   - Or kill the process using the port
+    - Change the port in your `.env` file
+    - Or kill the process using the port
 
 2. **API keys not working**
-   - Verify your API keys are set correctly
-   - Check the API provider's status
+    - Verify your API keys are set correctly
+    - Check the API provider's status
 
 3. **Plugins not loading**
-   - Verify the plugin directory path
-   - Check plugin dependencies
+    - Verify the plugin directory path
+    - Check plugin dependencies
 
 ### Getting Help
 

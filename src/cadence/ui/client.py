@@ -58,13 +58,13 @@ class CadenceApiClient:
             return api_response.json()
 
     def chat(
-        self,
-        user_message: str,
-        thread_id: Optional[str] = None,
-        user_id: str = "anonymous",
-        org_id: str = "public",
-        metadata: Optional[Dict[str, Any]] = None,
-        tone: Optional[str] = None,
+            self,
+            user_message: str,
+            thread_id: Optional[str] = None,
+            user_id: str = "anonymous",
+            org_id: str = "public",
+            metadata: Optional[Dict[str, Any]] = None,
+            tone: Optional[str] = None,
     ) -> ChatResult:
         """Send chat message and return assistant response."""
         chat_payload = {

@@ -21,17 +21,17 @@ class Thread:
     """
 
     def __init__(
-        self,
-        thread_id: Optional[str] = None,
-        user_id: str = "anonymous",
-        org_id: str = "public",
-        created_at: Optional[datetime] = None,
-        updated_at: Optional[datetime] = None,
-        total_tokens: int = 0,
-        input_tokens: int = 0,
-        output_tokens: int = 0,
-        message_count: int = 0,
-        status: ThreadStatus = ThreadStatus.ACTIVE,
+            self,
+            thread_id: Optional[str] = None,
+            user_id: str = "anonymous",
+            org_id: str = "public",
+            created_at: Optional[datetime] = None,
+            updated_at: Optional[datetime] = None,
+            total_tokens: int = 0,
+            input_tokens: int = 0,
+            output_tokens: int = 0,
+            message_count: int = 0,
+            status: ThreadStatus = ThreadStatus.ACTIVE,
     ):
         self.thread_id = thread_id or str(uuid.uuid4())
         self.user_id = user_id

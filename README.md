@@ -2,6 +2,8 @@
 
 A plugin-based multi-agent conversational AI framework built on FastAPI, designed for building intelligent chatbot systems with extensible agent architectures.
 
+![Cadence Demo](docs/images/demo001.webp)
+
 ## 🚀 Features
 
 - **Multi-Agent Orchestration**: Intelligent routing and coordination between AI agents
@@ -213,22 +215,39 @@ print(response.json())
 Create custom agents and tools using the Cadence SDK:
 
 ```python
-from cadence_sdk.base.agent import Agent
-from cadence_sdk.base.tools import Tool
+from cadence_sdk import BaseAgent, BasePlugin, PluginMetadata, tool
 
-class MyAgent(Agent):
-    name = "my_agent"
-    description = "A custom agent for specific tasks"
-    
-    def process(self, message: str) -> str:
-        return f"Processed: {message}"
+class MyPlugin(BasePlugin):
+    @staticmethod
+    def get_metadata() -> PluginMetadata:
+        return PluginMetadata(
+            name="my_agent",
+            version="1.0.0",
+            description="My custom AI agent",
+            capabilities=["custom_task"],
+            agent_type="specialized",
+            dependencies=["cadence_sdk>=1.0.1,<2.0.0"],
+        )
 
-class MyTool(Tool):
-    name = "my_tool"
-    description = "A custom tool for specific operations"
-    
-    def execute(self, **kwargs) -> str:
-        return "Tool executed successfully"
+    @staticmethod
+    def create_agent() -> BaseAgent:
+        return MyAgent(MyPlugin.get_metadata())
+
+class MyAgent(BaseAgent):
+    def __init__(self, metadata: PluginMetadata):
+        super().__init__(metadata)
+
+    def get_tools(self):
+        from .tools import my_custom_tool
+        return [my_custom_tool]
+
+    def get_system_prompt(self) -> str:
+        return "You are a helpful AI assistant."
+
+@tool
+def my_custom_tool(input_data: str) -> str:
+    """A custom tool for specific operations."""
+    return f"Processed: {input_data}"
 ```
 
 ## 🐳 Docker Deployment

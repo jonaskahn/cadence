@@ -10,6 +10,9 @@ from typing import Optional
 from cadence_sdk.base.loggable import Loggable
 from fastapi import HTTPException
 
+from .conversation_service import ConversationService
+from .orchestrator_service import OrchestratorService
+from ..orchestrator.coordinator import MultiAgentOrchestrator
 from ...config.settings import Settings
 from ...infrastructure.database.factory import DatabaseFactory
 from ...infrastructure.database.repositories import (
@@ -20,9 +23,6 @@ from ...infrastructure.database.repositories import (
 )
 from ...infrastructure.llm.factory import LLMModelFactory
 from ...infrastructure.plugins.sdk_manager import SDKPluginManager
-from ..orchestrator.coordinator import MultiAgentOrchestrator
-from .conversation_service import ConversationService
-from .orchestrator_service import OrchestratorService
 
 logger = logging.getLogger(__name__)
 
@@ -53,10 +53,10 @@ class ServiceContainer(Loggable):
         self.conversation_service: Optional[ConversationService] = None
 
     async def initialize(
-        self,
-        settings: Settings,
-        thread_repository: Optional[ThreadRepository] = None,
-        conversation_repository: Optional[ConversationRepository] = None,
+            self,
+            settings: Settings,
+            thread_repository: Optional[ThreadRepository] = None,
+            conversation_repository: Optional[ConversationRepository] = None,
     ) -> None:
         """Initialize all services with dependency injection."""
         self.logger.info("Initializing enhanced service container...")
@@ -92,7 +92,8 @@ class ServiceContainer(Loggable):
         self.logger.debug(f"Infrastructure initialized with {len(self.plugin_manager.get_available_plugins())} plugins")
 
     async def _initialize_repositories(
-        self, thread_repository: Optional[ThreadRepository], conversation_repository: Optional[ConversationRepository]
+            self, thread_repository: Optional[ThreadRepository],
+            conversation_repository: Optional[ConversationRepository]
     ) -> None:
         """Initialize repositories with dependency injection (backend-aware)."""
         if thread_repository and conversation_repository:
@@ -313,9 +314,9 @@ global_service_container = ServiceContainer()
 
 
 async def initialize_container(
-    settings: Settings,
-    thread_repository: Optional[ThreadRepository] = None,
-    conversation_repository: Optional[ConversationRepository] = None,
+        settings: Settings,
+        thread_repository: Optional[ThreadRepository] = None,
+        conversation_repository: Optional[ConversationRepository] = None,
 ) -> None:
     """Initialize API with enhanced service container.
 

@@ -18,13 +18,14 @@ flowchart TD
     end
 
     subgraph Core["Core System"]
-        Coord["Coordinator (LangGraph)"]
+        Coord["Enhanced Coordinator (LangGraph)"]
         SDKPM[SDK Plugin Manager]
         State[State Manager]
         LLMF[LLM Factory]
         Obs[Observability]
         Conf[Configuration]
         Tone[Tone Control]
+        Safety[Safety & Logging]
     end
 
     subgraph Discovery["Plugin Discovery"]
@@ -75,6 +76,9 @@ flowchart TD
     Coord --> Tone
     Tone --> State
 
+    Coord --> Safety
+    Safety --> State
+
     API --> Obs
     Coord --> Obs
 ```
@@ -91,13 +95,15 @@ The entry point for all external communication:
 - **CORS**: Cross-origin resource sharing configuration
 - **Validation**: Request/response validation with Pydantic
 
-### 2. **Multi-Agent Orchestrator**
+### 2. **Enhanced Multi-Agent Orchestrator**
 
 The brain of the system that coordinates agent interactions:
 
-- **Workflow Management**: LangGraph-based workflow orchestration
-- **Agent Routing**: Intelligent routing to appropriate agents with hop limit handling
-- **State Management**: Persistent conversation and workflow state
+- **Workflow Management**: LangGraph-based workflow orchestration with enhanced safety mechanisms
+- **Agent Routing**: Intelligent routing to appropriate agents with hop limit handling and message filtering
+- **State Management**: Persistent conversation and workflow state with standardized updates
+- **Safety Features**: Tool execution logging, message filtering, and error handling
+- **Dynamic Configuration**: Separate model configurations for coordinator and finalizer roles
 - **Error Handling**: Graceful failure recovery and fallbacks
 - **Performance Optimization**: Caching and resource management
 - **Suspend Node**: Intelligent handling of hop limits with AI communication
@@ -130,12 +136,12 @@ Manages connections to various language models:
 Cadence aggregates plugins from two sources at startup:
 
 - Pip-installed packages (environment packages)
-  - Discovered via the SDK registry when packages that depend on `cadence_sdk` are present
-  - Import of the package triggers `register_plugin(...)`
-  - No extra configuration needed beyond having the package installed
+    - Discovered via the SDK registry when packages that depend on `cadence_sdk` are present
+    - Import of the package triggers `register_plugin(...)`
+    - No extra configuration needed beyond having the package installed
 
 - Directory-based packages (filesystem)
-  - Controlled via environment variable `CADENCE_PLUGINS_DIR`
+    - Controlled via environment variable `CADENCE_PLUGINS_DIR`
 
 ```bash
 # Single directory
@@ -185,15 +191,17 @@ sequenceDiagram
 sequenceDiagram
     participant C as Client
     participant API as API Gateway
-    participant Coord as Orchestrator (LangGraph)
+    participant Coord as Enhanced Orchestrator (LangGraph)
     participant B as Plugin Bundle
     participant Agent as AgentNode
     participant Tools as ToolNode
     participant LLM as LLM (bound)
-    participant F as Finalizer
+    participant F as Enhanced Finalizer
+    participant Safety as Safety & Logging
 
     C->>API: HTTP Request (with tone)
     API->>Coord: Forward request with tone
+    Coord->>Safety: Filter safe messages
     Coord->>B: Select bundle based on routing
     Coord->>Agent: Invoke agent node (with state)
     Agent->>LLM: Invoke bound model

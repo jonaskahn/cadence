@@ -7,7 +7,6 @@ based on configuration, providing backend-agnostic access to storage.
 import logging
 from typing import Any, Dict, Tuple
 
-from ...config.settings import Settings
 from .connection import DatabaseConnectionManager, initialize_databases
 from .repositories import (
     ConversationRepository,
@@ -19,6 +18,7 @@ from .repositories import (
     RedisThreadRepository,
     ThreadRepository,
 )
+from ...config.settings import Settings
 
 logger = logging.getLogger(__name__)
 

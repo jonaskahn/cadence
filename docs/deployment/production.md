@@ -169,7 +169,7 @@ spec:
           persistentVolumeClaim:
             claimName: cadence-plugins-pvc
         - name: logs
-          emptyDir: {}
+          emptyDir: { }
 ```
 
 ### 3. Traditional Server Deployment

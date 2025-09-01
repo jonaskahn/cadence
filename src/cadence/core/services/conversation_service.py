@@ -9,11 +9,11 @@ from typing import Any, Dict, List, Optional
 
 from cadence_sdk.base.loggable import Loggable
 
+from ..orchestrator.coordinator import MultiAgentOrchestrator
 from ...domain.dtos.chat_dtos import ChatRequest, ChatResponse, TokenUsage
 from ...domain.models.conversation import Conversation
 from ...domain.models.thread import Thread, ThreadStatus
 from ...infrastructure.database.repositories import ConversationRepository, ThreadRepository
-from ..orchestrator.coordinator import MultiAgentOrchestrator
 
 
 class ConversationService(Loggable):
@@ -24,10 +24,10 @@ class ConversationService(Loggable):
     """
 
     def __init__(
-        self,
-        thread_repository: ThreadRepository,
-        conversation_repository: ConversationRepository,
-        orchestrator: MultiAgentOrchestrator,
+            self,
+            thread_repository: ThreadRepository,
+            conversation_repository: ConversationRepository,
+            orchestrator: MultiAgentOrchestrator,
     ):
         super().__init__()
         self.thread_repository = thread_repository
@@ -60,13 +60,13 @@ class ConversationService(Loggable):
         return thread
 
     async def _process_message_internal(
-        self,
-        thread: Thread,
-        message: str,
-        user_id: str,
-        org_id: str,
-        metadata: Optional[Dict[str, Any]] = None,
-        tone: Optional[str] = None,
+            self,
+            thread: Thread,
+            message: str,
+            user_id: str,
+            org_id: str,
+            metadata: Optional[Dict[str, Any]] = None,
+            tone: Optional[str] = None,
     ) -> ChatResponse:
         """Process message through orchestrator and store optimized conversation data."""
         conversation_history = await self.conversation_repository.get_conversation_history(thread.thread_id, limit=50)
@@ -267,7 +267,7 @@ class ConversationService(Loggable):
         return await self.thread_repository.archive_thread(thread_id)
 
     async def get_user_threads(
-        self, user_id: str, org_id: str, status: Optional[ThreadStatus] = None, limit: int = 20, offset: int = 0
+            self, user_id: str, org_id: str, status: Optional[ThreadStatus] = None, limit: int = 20, offset: int = 0
     ) -> List[Thread]:
         """Get threads for a specific user.
 
@@ -286,7 +286,7 @@ class ConversationService(Loggable):
         )
 
     async def search_conversations(
-        self, query: str, user_id: Optional[str] = None, thread_id: Optional[str] = None, limit: int = 20
+            self, query: str, user_id: Optional[str] = None, thread_id: Optional[str] = None, limit: int = 20
     ) -> List[Conversation]:
         """Search conversation content.
 
@@ -304,11 +304,11 @@ class ConversationService(Loggable):
         )
 
     async def get_conversation_statistics(
-        self,
-        user_id: Optional[str] = None,
-        org_id: Optional[str] = None,
-        start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None,
+            self,
+            user_id: Optional[str] = None,
+            org_id: Optional[str] = None,
+            start_date: Optional[datetime] = None,
+            end_date: Optional[datetime] = None,
     ) -> Dict[str, Any]:
         """Get conversation statistics.
 

@@ -3,8 +3,8 @@
 from sqlalchemy import BigInteger, Column, Enum, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import relationship
 
-from ....domain.models.thread import ThreadStatus
 from .base import Base, TimestampMixin
+from ....domain.models.thread import ThreadStatus
 
 
 class ThreadModel(Base, TimestampMixin):

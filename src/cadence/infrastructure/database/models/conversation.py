@@ -78,8 +78,8 @@ class ConversationModel(Base, TimestampMixin):
     def get_storage_size_estimate(self) -> int:
         """Estimate storage size in bytes for this conversation."""
         return (
-            len(self.user_message.encode("utf-8"))
-            + len(self.assistant_message.encode("utf-8"))
-            + len(str(self.conversation_metadata).encode("utf-8"))
-            + 100
+                len(self.user_message.encode("utf-8"))
+                + len(self.assistant_message.encode("utf-8"))
+                + len(str(self.conversation_metadata).encode("utf-8"))
+                + 100
         )

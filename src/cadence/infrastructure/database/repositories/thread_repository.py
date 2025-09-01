@@ -32,21 +32,21 @@ class ThreadRepository(ABC):
 
     @abstractmethod
     async def list_threads(
-        self,
-        user_id: Optional[str] = None,
-        org_id: Optional[str] = None,
-        status: Optional[ThreadStatus] = None,
-        limit: int = 20,
-        offset: int = 0,
-        sort_by: str = "updated_at",
-        sort_order: str = "desc",
+            self,
+            user_id: Optional[str] = None,
+            org_id: Optional[str] = None,
+            status: Optional[ThreadStatus] = None,
+            limit: int = 20,
+            offset: int = 0,
+            sort_by: str = "updated_at",
+            sort_order: str = "desc",
     ) -> List[Thread]:
         """List threads with filtering and pagination."""
         pass
 
     @abstractmethod
     async def count_threads(
-        self, user_id: Optional[str] = None, org_id: Optional[str] = None, status: Optional[ThreadStatus] = None
+            self, user_id: Optional[str] = None, org_id: Optional[str] = None, status: Optional[ThreadStatus] = None
     ) -> int:
         """Count threads matching filters."""
         pass
@@ -97,14 +97,14 @@ class InMemoryThreadRepository(ThreadRepository):
         return True
 
     async def list_threads(
-        self,
-        user_id: Optional[str] = None,
-        org_id: Optional[str] = None,
-        status: Optional[ThreadStatus] = None,
-        limit: int = 20,
-        offset: int = 0,
-        sort_by: str = "updated_at",
-        sort_order: str = "desc",
+            self,
+            user_id: Optional[str] = None,
+            org_id: Optional[str] = None,
+            status: Optional[ThreadStatus] = None,
+            limit: int = 20,
+            offset: int = 0,
+            sort_by: str = "updated_at",
+            sort_order: str = "desc",
     ) -> List[Thread]:
         """List threads with filtering and pagination."""
         filtered_threads = []
@@ -127,10 +127,10 @@ class InMemoryThreadRepository(ThreadRepository):
         else:
             filtered_threads.sort(key=lambda t: t.updated_at, reverse=reverse)
 
-        return filtered_threads[offset : offset + limit]
+        return filtered_threads[offset: offset + limit]
 
     async def count_threads(
-        self, user_id: Optional[str] = None, org_id: Optional[str] = None, status: Optional[ThreadStatus] = None
+            self, user_id: Optional[str] = None, org_id: Optional[str] = None, status: Optional[ThreadStatus] = None
     ) -> int:
         """Count threads matching filters."""
         count = 0

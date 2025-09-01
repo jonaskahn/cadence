@@ -15,15 +15,15 @@ Cadence supports multiple configuration methods:
 
 ### Application Settings
 
-| Variable        | Default                          | Description                                |
-|-----------------|----------------------------------|--------------------------------------------|
+| Variable           | Default                             | Description                                |
+|--------------------|-------------------------------------|--------------------------------------------|
 | `CADENCE_APP_NAME` | "Cadence Multi-agents AI Framework" | Application name displayed in logs and API |
-| `CADENCE_DEBUG`    | `false`                          | Enable debug mode                          |
+| `CADENCE_DEBUG`    | `false`                             | Enable debug mode                          |
 
 ### LLM Provider Configuration
 
-| Variable                          | Default                    | Description                                                                                      |
-|-----------------------------------|----------------------------|--------------------------------------------------------------------------------------------------|
+| Variable                             | Default                    | Description                                                                                      |
+|--------------------------------------|----------------------------|--------------------------------------------------------------------------------------------------|
 | `CADENCE_DEFAULT_LLM_PROVIDER`       | `openai`                   | Default LLM provider (`openai`, `azure-openai`/`azure`, `anthropic`/`claude`, `google`/`gemini`) |
 | `CADENCE_OPENAI_DEFAULT_MODEL`       | `gpt-4.1`                  | Default model when provider is `openai` or `azure`/`azure-openai`                                |
 | `CADENCE_ANTHROPIC_DEFAULT_MODEL`    | `claude-sonnet-4-20250514` | Default model when provider is `anthropic`/`claude`                                              |
@@ -39,8 +39,8 @@ Cadence supports multiple configuration methods:
 
 ### API Keys
 
-| Variable                    | Required | Description                         |
-|-----------------------------|----------|-------------------------------------|
+| Variable                       | Required | Description                         |
+|--------------------------------|----------|-------------------------------------|
 | `CADENCE_OPENAI_API_KEY`       | Yes\*    | OpenAI API key for GPT models       |
 | `CADENCE_AZURE_OPENAI_API_KEY` | Yes\*    | Azure OpenAI API key                |
 | `CADENCE_ANTHROPIC_API_KEY`    | Yes\*    | Anthropic API key for Claude models |
@@ -52,16 +52,16 @@ Cadence supports multiple configuration methods:
 
 When using `azure-openai` (alias: `azure`) as the provider, configure the following:
 
-| Variable                        | Default              | Description                          |
-|---------------------------------|----------------------|--------------------------------------|
+| Variable                           | Default              | Description                          |
+|------------------------------------|----------------------|--------------------------------------|
 | `CADENCE_AZURE_OPENAI_ENDPOINT`    | —                    | Azure OpenAI endpoint URL            |
 | `CADENCE_AZURE_OPENAI_API_VERSION` | `2024-02-15-preview` | Azure OpenAI API version             |
 | `CADENCE_AZURE_OPENAI_DEPLOYMENT`  | —                    | Azure OpenAI deployment (model name) |
 
 ### Plugin Configuration
 
-| Variable           | Default                          | Description                                            |
-|--------------------|----------------------------------|--------------------------------------------------------|
+| Variable              | Default                             | Description                                            |
+|-----------------------|-------------------------------------|--------------------------------------------------------|
 | `CADENCE_PLUGINS_DIR` | `["./plugins/src/cadence_plugins"]` | Plugin directory path(s). Accepts a path or JSON list. |
 
 Examples:
@@ -76,23 +76,23 @@ CADENCE_PLUGINS_DIR=["/abs/path/one", "/abs/path/two"]
 
 ### API Server Configuration
 
-| Variable            | Default   | Description             |
-|---------------------|-----------|-------------------------|
+| Variable               | Default   | Description             |
+|------------------------|-----------|-------------------------|
 | `CADENCE_API_HOST`     | `0.0.0.0` | API server host address |
 | `CADENCE_API_PORT`     | `8000`    | API server port number  |
 | `CADENCE_CORS_ORIGINS` | `["*"]`   | CORS allowed origins    |
 
 ### Session Configuration
 
-| Variable                   | Default | Description                    |
-|----------------------------|---------|--------------------------------|
+| Variable                      | Default | Description                    |
+|-------------------------------|---------|--------------------------------|
 | `CADENCE_SESSION_TIMEOUT`     | `3600`  | Session timeout in seconds     |
 | `CADENCE_MAX_SESSION_HISTORY` | `100`   | Maximum session history length |
 
 ### Processing Configuration
 
-| Variable                     | Default | Description                                                                  |
-|------------------------------|---------|------------------------------------------------------------------------------|
+| Variable                        | Default | Description                                                                  |
+|---------------------------------|---------|------------------------------------------------------------------------------|
 | `CADENCE_MAX_AGENT_HOPS`        | `25`    | Maximum agent switches before suspend/finalization                           |
 | `CADENCE_MAX_TOOL_HOPS`         | `50`    | Maximum tool calls per request before suspend/finalization                   |
 | `CADENCE_GRAPH_RECURSION_LIMIT` | `50`    | Maximum LangGraph steps per request (prevents graph recursion/infinite loop) |
@@ -101,29 +101,29 @@ CADENCE_PLUGINS_DIR=["/abs/path/one", "/abs/path/two"]
 
 #### Backend Selection
 
-| Variable                            | Default  | Description                                            |
-|-------------------------------------|----------|--------------------------------------------------------|
+| Variable                               | Default  | Description                                            |
+|----------------------------------------|----------|--------------------------------------------------------|
 | `CADENCE_CONVERSATION_STORAGE_BACKEND` | `memory` | Conversation backend (`memory`, `redis`, `postgresql`) |
 
 #### PostgreSQL Configuration
 
-| Variable                     | Default | Description                                |
-|------------------------------|---------|--------------------------------------------|
+| Variable                        | Default | Description                                |
+|---------------------------------|---------|--------------------------------------------|
 | `CADENCE_POSTGRES_URL`          | —       | PostgreSQL connection URL (asyncpg format) |
 | `CADENCE_POSTGRES_POOL_SIZE`    | `20`    | PostgreSQL connection pool size            |
 | `CADENCE_POSTGRES_MAX_OVERFLOW` | `30`    | PostgreSQL connection pool max overflow    |
 
 #### Redis Configuration
 
-| Variable               | Default | Description                |
-|------------------------|---------|----------------------------|
+| Variable                  | Default | Description                |
+|---------------------------|---------|----------------------------|
 | `CADENCE_REDIS_URL`       | `None`  | Redis connection URL       |
 | `CADENCE_REDIS_POOL_SIZE` | `20`    | Redis connection pool size |
 
 ### Persistence Configuration (Chat Memory/Checkpoints)
 
-| Variable                                            | Default      | Description                                                                           |
-|-----------------------------------------------------|--------------|---------------------------------------------------------------------------------------|
+| Variable                                               | Default      | Description                                                                           |
+|--------------------------------------------------------|--------------|---------------------------------------------------------------------------------------|
 | `CADENCE_PERSISTENCE_TYPE`                             | `checkpoint` | Persistence mode: `checkpoint` or `memory`                                            |
 | `CADENCE_PERSISTENCE_CHECKPOINT_LAYER`                 | `redis`      | Backend for checkpoints: `redis`, `postgres`, or `sqlite` (falls back to in-memory)   |
 | `CADENCE_PERSISTENCE_CHECKPOINT_REDIS_TTL_MINUTES`     | `1440`       | Default TTL for Redis checkpoints (minutes)                                           |

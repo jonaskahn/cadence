@@ -11,8 +11,8 @@ from typing import Any, Dict, List, Optional
 from cadence_sdk.types.state import AgentState
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 
-from ...domain.models.conversation import Conversation
 from ..orchestrator.coordinator import MultiAgentOrchestrator
+from ...domain.models.conversation import Conversation
 
 logger = logging.getLogger(__name__)
 
@@ -25,16 +25,16 @@ class OrchestratorResponse:
     """
 
     def __init__(
-        self,
-        response: str,
-        input_tokens: int,
-        output_tokens: int,
-        agent_hops: int = 0,
-        tool_hops: int = 0,
-        processing_time: float = 0.0,
-        tools_used: Optional[List[str]] = None,
-        routing_history: Optional[List[str]] = None,
-        error: Optional[str] = None,
+            self,
+            response: str,
+            input_tokens: int,
+            output_tokens: int,
+            agent_hops: int = 0,
+            tool_hops: int = 0,
+            processing_time: float = 0.0,
+            tools_used: Optional[List[str]] = None,
+            routing_history: Optional[List[str]] = None,
+            error: Optional[str] = None,
     ):
         self.response = response
         self.input_tokens = input_tokens
@@ -78,13 +78,13 @@ class OrchestratorService:
         self.orchestrator = orchestrator
 
     async def process_with_context(
-        self,
-        thread_id: str,
-        message: str,
-        conversation_history: List[Conversation],
-        user_id: str = "anonymous",
-        org_id: str = "public",
-        metadata: Optional[Dict[str, Any]] = None,
+            self,
+            thread_id: str,
+            message: str,
+            conversation_history: List[Conversation],
+            user_id: str = "anonymous",
+            org_id: str = "public",
+            metadata: Optional[Dict[str, Any]] = None,
     ) -> OrchestratorResponse:
         """Process message with conversation context."""
         start_time = time.time()
@@ -201,7 +201,7 @@ class OrchestratorService:
         return max(1, len(text) // 4)
 
     async def process_simple_message(
-        self, message: str, thread_id: str = "temp_session", user_id: str = "anonymous", org_id: str = "public"
+            self, message: str, thread_id: str = "temp_session", user_id: str = "anonymous", org_id: str = "public"
     ) -> OrchestratorResponse:
         """Process a simple message without conversation history.
 

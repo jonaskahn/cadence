@@ -10,7 +10,6 @@ from typing import Dict, List, Optional
 from cadence_sdk.base.loggable import Loggable
 from langchain_core.language_models import BaseChatModel
 
-from ...config.settings import Settings
 from .providers import (
     AnthropicProvider,
     AzureOpenAIProvider,
@@ -19,6 +18,7 @@ from .providers import (
     ModelConfig,
     OpenAIProvider,
 )
+from ...config.settings import Settings
 
 
 class ModelCacheManager(Loggable):
@@ -251,7 +251,7 @@ class LLMModelFactory(Loggable):
 
         return ModelConfig(
             provider=self.settings.default_llm_provider,
-            model_name=self.settings.get_default_provider_llm_model(),
+            model_name=self.settings.get_default_provider_llm_model(self.settings.default_llm_provider),
             api_key=self.settings.get_api_key_for_provider(self.settings.default_llm_provider),
             additional_params=self.settings.get_provider_extra_params(self.settings.default_llm_provider),
         )

@@ -27,7 +27,7 @@ class ConversationRepository(ABC):
 
     @abstractmethod
     async def get_conversation_history(
-        self, thread_id: str, limit: int = 50, before_id: Optional[str] = None
+            self, thread_id: str, limit: int = 50, before_id: Optional[str] = None
     ) -> List[Conversation]:
         """Get conversation history for a thread, ordered by creation time."""
         pass
@@ -39,26 +39,26 @@ class ConversationRepository(ABC):
 
     @abstractmethod
     async def get_recent_conversations(
-        self, user_id: Optional[str] = None, org_id: Optional[str] = None, limit: int = 10, hours_back: int = 24
+            self, user_id: Optional[str] = None, org_id: Optional[str] = None, limit: int = 10, hours_back: int = 24
     ) -> List[Conversation]:
         """Get recent conversation across threads."""
         pass
 
     @abstractmethod
     async def search_conversations(
-        self, query: str, thread_id: Optional[str] = None, user_id: Optional[str] = None, limit: int = 20
+            self, query: str, thread_id: Optional[str] = None, user_id: Optional[str] = None, limit: int = 20
     ) -> List[Conversation]:
         """Search conversation by content."""
         pass
 
     @abstractmethod
     async def get_conversation_statistics(
-        self,
-        thread_id: Optional[str] = None,
-        user_id: Optional[str] = None,
-        org_id: Optional[str] = None,
-        start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None,
+            self,
+            thread_id: Optional[str] = None,
+            user_id: Optional[str] = None,
+            org_id: Optional[str] = None,
+            start_date: Optional[datetime] = None,
+            end_date: Optional[datetime] = None,
     ) -> Dict[str, Any]:
         """Get conversation statistics."""
         pass
@@ -92,7 +92,7 @@ class InMemoryConversationRepository(ConversationRepository):
         return self._conversations.get(id)
 
     async def get_conversation_history(
-        self, thread_id: str, limit: int = 50, before_id: Optional[str] = None
+            self, thread_id: str, limit: int = 50, before_id: Optional[str] = None
     ) -> List[Conversation]:
         """Get conversation history for a thread, ordered by creation time."""
         thread_conversations = [conv for conv in self._conversations.values() if conv.thread_id == thread_id]
@@ -113,7 +113,7 @@ class InMemoryConversationRepository(ConversationRepository):
         return sum(1 for conv in self._conversations.values() if conv.thread_id == thread_id)
 
     async def get_recent_conversations(
-        self, user_id: Optional[str] = None, org_id: Optional[str] = None, limit: int = 10, hours_back: int = 24
+            self, user_id: Optional[str] = None, org_id: Optional[str] = None, limit: int = 10, hours_back: int = 24
     ) -> List[Conversation]:
         """Get recent conversations across threads."""
         cutoff_time = datetime.utcnow() - timedelta(hours=hours_back)
@@ -130,7 +130,7 @@ class InMemoryConversationRepository(ConversationRepository):
         return filtered_conversations[:limit]
 
     async def search_conversations(
-        self, query: str, thread_id: Optional[str] = None, user_id: Optional[str] = None, limit: int = 20
+            self, query: str, thread_id: Optional[str] = None, user_id: Optional[str] = None, limit: int = 20
     ) -> List[Conversation]:
         """Search conversations by content."""
         query_lower = query.lower()
@@ -148,12 +148,12 @@ class InMemoryConversationRepository(ConversationRepository):
         return matching_conversations[:limit]
 
     async def get_conversation_statistics(
-        self,
-        thread_id: Optional[str] = None,
-        user_id: Optional[str] = None,
-        org_id: Optional[str] = None,
-        start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None,
+            self,
+            thread_id: Optional[str] = None,
+            user_id: Optional[str] = None,
+            org_id: Optional[str] = None,
+            start_date: Optional[datetime] = None,
+            end_date: Optional[datetime] = None,
     ) -> Dict[str, Any]:
         """Get conversation statistics."""
         filtered_conversations = []

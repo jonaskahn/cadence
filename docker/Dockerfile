@@ -29,4 +29,4 @@ RUN poetry env use $(which python)
 RUN poetry install
 
 EXPOSE 8000 8501
-CMD ["poetry", "run", "python", "-m", "echo", "start", "all"]
+CMD ["poetry", "run", "python", "-m", "cadence", "start", "all"]

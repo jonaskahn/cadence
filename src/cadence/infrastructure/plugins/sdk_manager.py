@@ -81,11 +81,11 @@ class SDKPluginBundle(Loggable):
     """
 
     def __init__(
-        self,
-        contract: BasePlugin,
-        agent,
-        bound_model,
-        tools: List[Tool],
+            self,
+            contract: BasePlugin,
+            agent,
+            bound_model,
+            tools: List[Tool],
     ):
         super().__init__()
         self.contract = contract
@@ -488,7 +488,6 @@ class SDKPluginManager(Loggable):
         control_tools: List[Tool] = []
 
         def _make_goto_tool(name: str, description: str) -> Tool:
-
             def _goto() -> str:
                 """Route control to an agent by name."""
                 return name
