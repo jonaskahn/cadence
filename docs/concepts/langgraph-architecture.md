@@ -46,7 +46,7 @@ graph TB
     subgraph "Infrastructure Layer"
         Q[State Management] --> R[LLM Factory]
         S[Plugin Manager] --> T[Graph Builder]
-        U[ToolExecutionLogger] --> V[Hop Counting]
+        U[ToolExecutionLogger] --> V[Agent Hop Counting]
         W[Message Filtering] --> X[Safety Validation]
     end
 ```
@@ -86,7 +86,7 @@ graph LR
     
     A --> E[Entry Point]
     C --> D
-    D --> F[END]
+    D --> F[DONE]
 ```
 
 **Implementation:**
@@ -141,7 +141,7 @@ graph TB
         A[coordinator] --> B{Decision Logic}
         B -->|continue| C[control_tools]
         B -->|suspend| D[suspend]
-        B -->|end| E[finalizer]
+        B -->|done| E[finalizer]
     end
     
     subgraph "Control Tools Routing"
@@ -162,7 +162,7 @@ graph TB
     end
     
     D --> E
-    E --> O[END]
+    E --> O[DONE]
 ```
 
 **Implementation:**
@@ -180,11 +180,11 @@ def _add_coordinator_routing_edges(self, graph: StateGraph) -> None:
     graph.add_conditional_edges(
         GraphNodeNames.COORDINATOR,
         self._coordinator_routing_logic,
-        {
-            RoutingDecision.CONTINUE: GraphNodeNames.CONTROL_TOOLS,
-            RoutingDecision.END: GraphNodeNames.FINALIZER,
-            RoutingDecision.SUSPEND: GraphNodeNames.SUSPEND,
-        },
+                    {
+                RoutingDecision.CONTINUE: GraphNodeNames.CONTROL_TOOLS,
+                RoutingDecision.DONE: GraphNodeNames.FINALIZER,
+                RoutingDecision.SUSPEND: GraphNodeNames.SUSPEND,
+            },
     )
 
 
@@ -195,7 +195,7 @@ def _add_control_tools_routing_edges(self, graph: StateGraph) -> None:
     for plugin_bundle in self.plugin_manager.plugin_bundles.values():
         route_mapping[plugin_bundle.metadata.name] = f"{plugin_bundle.metadata.name}_agent"
 
-    route_mapping[RoutingDecision.END] = GraphNodeNames.FINALIZER
+            route_mapping[RoutingDecision.DONE] = GraphNodeNames.FINALIZER
 
     graph.add_conditional_edges(GraphNodeNames.CONTROL_TOOLS, self._determine_plugin_route, route_mapping)
 
@@ -351,8 +351,8 @@ def _coordinator_routing_logic(self, state: AgentState) -> str:
         self.logger.debug("Routing to CONTINUE due to tool calls present")
         return RoutingDecision.CONTINUE
     else:
-        self.logger.debug("Routing to END - no tool calls and hop limit not reached")
-        return RoutingDecision.END
+        self.logger.debug("Routing to DONE - no tool calls and agent hop limit not reached")
+        return RoutingDecision.DONE
 ```
 
 ### Enhanced Tool Call Detection
@@ -387,6 +387,35 @@ This enhanced detection provides:
 - Clear visibility into tool call processing
 - Better error diagnosis capabilities
 
+### Coordinator Response Enforcement
+
+The coordinator now enforces proper routing by ensuring all responses go through the finalizer node:
+
+```python
+if is_routing_to_agent:
+    tool_calls = getattr(coordinator_response, "tool_calls", [])
+    if tool_calls:
+        current_agent_hops = self.calculate_agent_hops(current_agent_hops, tool_calls)
+else:
+    # If no tool calls, remove content and add fake tool call to finalizer
+    # This ensures the coordinator always routes through the finalizer node
+    coordinator_response.content = ""
+    # Create a fake tool call to goto_finalize
+    fake_tool_call = ToolCall(
+        id="fake_finalize_call",
+        name="goto_finalize",
+        args={}
+    )
+    coordinator_response.tool_calls = [fake_tool_call]
+```
+
+This fix ensures:
+
+- **Consistent Routing**: All responses go through the finalizer node for proper synthesis
+- **No Direct Answers**: The coordinator never answers questions directly
+- **Proper Flow**: Maintains the intended conversation flow through the finalizer
+- **Content Cleanup**: Removes any direct response content from the coordinator
+
 ### Hop Limit Management
 
 The system prevents infinite loops through hop counting:
@@ -395,13 +424,11 @@ The system prevents infinite loops through hop counting:
 graph LR
     subgraph "Hop Counting"
         A[agent_hops] --> B{Check Limits}
-        C[tool_hops] --> B
         B -->|Exceeded| D[Route to Suspend]
         B -->|Within Limits| E[Continue Processing]
     end
     
     subgraph "State Tracking"
-        F[ToolExecutionLogger] --> G[Increment tool_hops]
         H[Agent Switches] --> I[Increment agent_hops]
         J[Message Filtering] --> K[Safe State Updates]
     end
@@ -613,26 +640,21 @@ flowchart TD
 
 ## Tool Execution Logging and Safety
 
-The system includes a comprehensive `ToolExecutionLogger` callback handler for tracking tool execution and managing hop
+The system includes a comprehensive `ToolExecutionLogger` callback handler for tracking tool execution and managing
+agent hop
 counting:
 
 ```python
 class ToolExecutionLogger(BaseCallbackHandler):
-    """Logs tool execution and manages hop counting for conversation safety."""
+    """Logs tool execution and manages agent hop counting for conversation safety."""
 
     def on_tool_start(self, serialized=None, input_str=None, **kwargs):
-        """Logs tool execution start and updates hop counters for non-routing tools."""
+        """Logs tool execution start for debugging purposes."""
         try:
             tool_name = serialized.get("name") if isinstance(serialized, dict) else None
             self.logger.debug(f"Tool start: name={tool_name or 'unknown'} input={input_str}")
 
-            if tool_name.startswith("goto_"):
-                self.logger.debug(f"Tool name={tool_name or 'unknown'} is skipped from counting")
-            elif self.state_updater:
-                self.logger.debug(f"Updating tool_hops: +1 (tool: {tool_name})")
-                self.state_updater("tool_hops", 1)
-            else:
-                self.logger.warning("No state_updater available for tool_hops tracking")
+
         except Exception as e:
             self.logger.error(f"Error in on_tool_start: {e}")
 
@@ -729,7 +751,7 @@ graph TB
         
         C -->|continue| D[control_tools]
         C -->|suspend| E[suspend]
-        C -->|end| K[Enhanced Finalizer]
+        C -->|done| K[Enhanced Finalizer]
         
         D --> G{Plugin Selection}
         G -->|math| H[math_agent]
@@ -746,12 +768,11 @@ graph TB
         N --> O
         
         E --> K
-        K --> F[END]
+        K --> F[DONE]
     end
     
     subgraph "State Management"
         P[AgentState] --> Q[agent_hops]
-        P --> R[tool_hops]
         P --> S[messages]
         P --> T[current_agent]
         P --> U[tone]
@@ -833,10 +854,10 @@ def _create_state_update(message: AIMessage, agent_hops: int, state: Dict[str, A
         "agent_hops": agent_hops,
     }
 
-    if state:
-        for key in ["tool_hops", "current_agent", "plugin_context", "session_id"]:
-            if key in state:
-                update[key] = state[key]
+            if state:
+            for key in ["current_agent", "plugin_context", "thread_id"]:
+                if key in state:
+                    update[key] = state[key]
 
     return update
 ```
@@ -844,7 +865,7 @@ def _create_state_update(message: AIMessage, agent_hops: int, state: Dict[str, A
 This ensures:
 
 - Consistent state structure across all nodes
-- Proper hop counting and tracking
+- Proper agent hop counting and tracking
 - Preservation of important state fields
 - Clean separation between new and existing state data
 
@@ -926,10 +947,10 @@ sequenceDiagram
 ```mermaid
 graph LR
     subgraph "State Progression"
-        A[agent_hops: 0<br/>tool_hops: 0]
-        B[agent_hops: 1<br/>tool_hops: 1]
-        C[agent_hops: 2<br/>tool_hops: 2]
-        D[agent_hops: 2<br/>tool_hops: 2]
+        A[agent_hops: 0]
+        B[agent_hops: 1]
+        C[agent_hops: 2]
+        D[agent_hops: 2]
     end
     
     A --> B --> C --> D
@@ -1076,7 +1097,6 @@ graph TB
 graph LR
     subgraph "Configuration"
         A[Settings] --> B[Max Agent Hops]
-        A --> C[Max Tool Hops]
         A --> D[Graph Recursion Limit]
         A --> E[LLM Provider Settings]
         A --> F[Separate Model Configs]
@@ -1094,7 +1114,7 @@ graph LR
         M[Coordinator Model] --> N[Parallel Tool Calls]
         O[Suspend Model] --> P[Graceful Termination]
         Q[Finalizer Model] --> R[Tone-Aware Responses]
-        S[ToolExecutionLogger] --> T[Hop Counting]
+        S[ToolExecutionLogger] --> T[Agent Hop Counting]
         U[State Updates] --> V[Standardized Format]
     end
 ```
@@ -1177,13 +1197,13 @@ def _determine_plugin_route(self, state: AgentState) -> str:
     """Route to appropriate plugin agent based on tool results."""
     messages = state.get("messages", [])
     if not messages:
-        return RoutingDecision.END
+        return RoutingDecision.DONE
 
     last_message = messages[-1]
 
     if not self._is_valid_tool_message(last_message):
         self.logger.warning("No valid tool message found in routing")
-        return RoutingDecision.END
+        return RoutingDecision.DONE
 
     tool_result = last_message.content
     self.logger.debug(
@@ -1195,10 +1215,10 @@ def _determine_plugin_route(self, state: AgentState) -> str:
     ]:
         return tool_result
     elif tool_result == "finalize":
-        return RoutingDecision.END
+        return RoutingDecision.DONE
     else:
-        self.logger.warning(f"Unknown tool result: '{tool_result}', routing to END")
-        return RoutingDecision.END
+        self.logger.warning(f"Unknown tool result: '{tool_result}', routing to DONE")
+        return RoutingDecision.DONE
 
 
 @staticmethod

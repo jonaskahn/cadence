@@ -5,14 +5,15 @@ and infinite loop prevention through hop counters.
 """
 
 import traceback
+import uuid
 from enum import Enum
 from typing import Any, Dict, List
 
 from cadence_sdk.base.loggable import Loggable
 from cadence_sdk.types import AgentState
 from langchain_core.callbacks.base import BaseCallbackHandler
-from langchain_core.messages import AIMessage, SystemMessage
-from langgraph.graph import StateGraph
+from langchain_core.messages import AIMessage, SystemMessage, ToolCall
+from langgraph.graph import END, StateGraph
 from langgraph.prebuilt import ToolNode
 
 from ...config.settings import Settings
@@ -64,19 +65,23 @@ class RoutingDecision:
 
     CONTINUE = "continue"
     SUSPEND = "suspend"
-    END = "end"
+    DONE = "done"
     FINAL = "final"
 
 
 class ConversationPrompts:
     """System prompts for different conversation roles."""
 
-    COORDINATOR_INSTRUCTIONS = """Your goal is to analyze queries and decide which agent to route to from the **AVAILABLE AGENTS**.
+    COORDINATOR_INSTRUCTIONS = """You are Coordinator Node in Multiple Agents System. 
+Your goal is to analyze current user query base on whole context chat histories and decide next step by route to an agent from the **AVAILABLE AGENTS**. 
 **AVAILABLE AGENTS**
 {plugin_descriptions}
-- finalize: Call when you think the answer for the user query/question is ready, simple greeting questions, etc, and no suitable agents.
+- finalize: Call when you think the answer for the user query/question is ready, simple questions: like greeting, etc, and no suitable agents.
+**IMPORTANT**
+- Avoid rework if information existed in chat histories
+- Your role is select next step, only for this purpose
 **DECISION OUTPUT**
-- Choose ONE of: {tool_options} | goto_finalize"""
+- Choose ONLY ONE for the next step: {tool_options} | goto_finalize"""
 
     HOP_LIMIT_REACHED = """You have reached maximum agent call ({current}/{maximum}) allowed by the system.
 **What this means:**
@@ -91,40 +96,34 @@ class ConversationPrompts:
 4. If the answer is incomplete, explain why and suggest the user continue the chat
 
 **IMPORTANT**, never makeup the answer if provided information by agents not enough
+**RESPONSE STYLE**: {tone_instruction}
+**LANGUAGE**: Respond in the same language as the user's query or as explicitly requested by the user.
 Please provide a helpful response that addresses the user's query while explaining the hop limit situation."""
 
     FINALIZER_INSTRUCTIONS = """You are the Finalizer, responsible for creating the final response for a multi-agent conversation.
-
 CRITICAL REQUIREMENTS:
 1. **RESPECT AGENT RESPONSES** - Use ONLY the information provided by agents and tools, do NOT make up or add information
 2. **ADDRESS CURRENT USER QUERY** - Focus on answering the recent user question, use previous conversation as context
-3. **SYNTHESIZE RELEVANT WORK** - Connect and organize the work done by different agents into a coherent answer
+3. **SYNTHESIZE RELEVANT WORK** - Connect and organize the work done by work done in each step for answer
 4. **BE HELPFUL** - Provide useful, actionable information that directly answers the user's question
 5. **RESPONSE STYLE**: {tone_instruction}
+6. **LANGUAGE**: Respond in the same language as the user's query or as explicitly requested by the user.
 
 IMPORTANT: Your role is to synthesize and present the information that agents have gathered, not to generate new information or make assumptions beyond what's provided in the conversation."""
 
 
 class ToolExecutionLogger(BaseCallbackHandler):
-    """Logs tool execution and manages hop counting for conversation safety."""
+    """Logs tool execution for conversation tracking."""
 
     def __init__(self, logger, state_updater=None):
         self.logger = logger
         self.state_updater = state_updater
 
     def on_tool_start(self, serialized=None, input_str=None, **kwargs):
-        """Log tool execution start and update hop counters for non-routing tools."""
+        """Log tool execution start."""
         try:
             tool_name = serialized.get("name") if isinstance(serialized, dict) else None
             self.logger.debug(f"Tool start: name={tool_name or 'unknown'} input={input_str}")
-
-            if tool_name.startswith("goto_"):
-                self.logger.debug(f"Tool name={tool_name or 'unknown'} is skipped from counting")
-            elif self.state_updater:
-                self.logger.debug(f"Updating tool_hops: +1 (tool: {tool_name})")
-                self.state_updater("tool_hops", 1)
-            else:
-                self.logger.warning("No state_updater available for tool_hops tracking")
         except Exception as e:
             self.logger.error(f"Error in on_tool_start: {e}")
 
@@ -141,11 +140,11 @@ class MultiAgentOrchestrator(Loggable):
     """Coordinates multi-agent conversations using LangGraph with dynamic plugin integration."""
 
     def __init__(
-            self,
-            plugin_manager: SDKPluginManager,
-            llm_factory: LLMModelFactory,
-            settings: Settings,
-            checkpointer: Any | None = None,
+        self,
+        plugin_manager: SDKPluginManager,
+        llm_factory: LLMModelFactory,
+        settings: Settings,
+        checkpointer: Any | None=None,
     ) -> None:
         super().__init__()
         self.plugin_manager = plugin_manager
@@ -178,7 +177,7 @@ class MultiAgentOrchestrator(Loggable):
         )
 
         base_model = self.llm_factory.create_base_model(model_config)
-        return base_model.bind_tools(control_tools, parallel_tool_calls=True)
+        return base_model.bind_tools(control_tools, parallel_tool_calls=False)
 
     def _create_suspend_model(self):
         """Create LLM model for suspend node with fallback to default."""
@@ -282,10 +281,12 @@ class MultiAgentOrchestrator(Loggable):
             self._coordinator_routing_logic,
             {
                 RoutingDecision.CONTINUE: GraphNodeNames.CONTROL_TOOLS,
-                RoutingDecision.END: GraphNodeNames.FINALIZER,
+                RoutingDecision.DONE: GraphNodeNames.FINALIZER,
                 RoutingDecision.SUSPEND: GraphNodeNames.SUSPEND,
             },
         )
+        graph.add_edge(GraphNodeNames.SUSPEND, END)
+        graph.add_edge(GraphNodeNames.FINALIZER, END)
 
     def _add_control_tools_routing_edges(self, graph: StateGraph) -> None:
         """Add conditional edges from control tools to plugin agents and finalizer."""
@@ -294,7 +295,7 @@ class MultiAgentOrchestrator(Loggable):
         for plugin_bundle in self.plugin_manager.plugin_bundles.values():
             route_mapping[plugin_bundle.metadata.name] = f"{plugin_bundle.metadata.name}_agent"
 
-        route_mapping[RoutingDecision.END] = GraphNodeNames.FINALIZER
+        route_mapping[RoutingDecision.DONE] = GraphNodeNames.FINALIZER
 
         graph.add_conditional_edges(GraphNodeNames.CONTROL_TOOLS, self._determine_plugin_route, route_mapping)
 
@@ -315,8 +316,8 @@ class MultiAgentOrchestrator(Loggable):
             self.logger.debug("Routing to CONTINUE due to tool calls present")
             return RoutingDecision.CONTINUE
         else:
-            self.logger.debug("Routing to END - no tool calls and hop limit not reached")
-            return RoutingDecision.END
+            self.logger.debug("Routing to DONE - no tool calls and hop limit not reached")
+            return RoutingDecision.DONE
 
     def _is_hop_limit_reached(self, state: AgentState) -> bool:
         """Check if conversation has reached maximum allowed agent hops."""
@@ -347,13 +348,13 @@ class MultiAgentOrchestrator(Loggable):
         """Route to appropriate plugin agent based on tool results."""
         messages = state.get("messages", [])
         if not messages:
-            return RoutingDecision.END
+            return RoutingDecision.DONE
 
         last_message = messages[-1]
 
         if not self._is_valid_tool_message(last_message):
             self.logger.warning("No valid tool message found in routing")
-            return RoutingDecision.END
+            return RoutingDecision.DONE
 
         tool_result = last_message.content
         self.logger.debug(
@@ -365,10 +366,10 @@ class MultiAgentOrchestrator(Loggable):
         ]:
             return tool_result
         elif tool_result == "finalize":
-            return RoutingDecision.END
+            return RoutingDecision.DONE
         else:
-            self.logger.warning(f"Unknown tool result: '{tool_result}', routing to END")
-            return RoutingDecision.END
+            self.logger.warning(f"Unknown tool result: '{tool_result}', routing to DONE")
+            return RoutingDecision.DONE
 
     @staticmethod
     def _is_valid_tool_message(message: Any) -> bool:
@@ -386,9 +387,7 @@ class MultiAgentOrchestrator(Loggable):
         )
 
         system_message = SystemMessage(content=coordinator_prompt)
-        safe_messages = self._filter_safe_messages(messages)
-
-        coordinator_response = self.coordinator_model.invoke([system_message] + safe_messages)
+        coordinator_response = self.coordinator_model.invoke([system_message] + messages)
 
         current_agent_hops = state.get("agent_hops", 0)
         is_routing_to_agent = self._has_tool_calls({"messages": [coordinator_response]})
@@ -396,22 +395,36 @@ class MultiAgentOrchestrator(Loggable):
         if is_routing_to_agent:
             tool_calls = getattr(coordinator_response, "tool_calls", [])
             if tool_calls:
-                first_tool_name = (
-                    tool_calls[0].get("name") if isinstance(tool_calls[0], dict) else getattr(tool_calls[0], "name", "")
-                )
-                is_not_finalize_call = first_tool_name and first_tool_name != "goto_finalize"
-                if is_not_finalize_call:
-                    current_agent_hops += 1
-
+                current_agent_hops = self.calculate_agent_hops(current_agent_hops, tool_calls)
+        else:
+            coordinator_response.content = ""
+            coordinator_response.tool_calls = [ ToolCall(
+                id=str(uuid.uuid4()),
+                name="goto_finalize",
+                args={}
+            )]
+            
         return self._create_state_update(coordinator_response, current_agent_hops, state)
+
+    @staticmethod
+    def calculate_agent_hops(current_agent_hops, tool_calls):
+        potential_tool_calls = list(map(lambda x: x.get("name"), tool_calls))
+        for potential_tool_call in potential_tool_calls:
+            if potential_tool_call != "goto_finalize":
+                current_agent_hops += 1
+        return current_agent_hops
 
     def _suspend_node(self, state: AgentState) -> AgentState:
         """Handle graceful conversation termination when hop limits are exceeded."""
         current_hops = state.get("agent_hops", 0)
         max_hops = self.settings.max_agent_hops
+        requested_tone = state.get("tone", "natural") or "natural"
+        tone_instruction = self._get_tone_instruction(requested_tone)
 
         suspension_message = SystemMessage(
-            content=ConversationPrompts.HOP_LIMIT_REACHED.format(current=current_hops, maximum=max_hops)
+            content=ConversationPrompts.HOP_LIMIT_REACHED.format(
+                current=current_hops, maximum=max_hops, tone_instruction=tone_instruction
+            )
         )
 
         safe_messages = self._filter_safe_messages(state["messages"])
@@ -428,9 +441,7 @@ class MultiAgentOrchestrator(Loggable):
             tone_instruction=tone_instruction
         )
         finalization_prompt = SystemMessage(content=finalization_prompt_content)
-
-        safe_messages = self._filter_safe_messages(messages)
-        final_response = self.finalizer_model.invoke([finalization_prompt] + safe_messages)
+        final_response = self.finalizer_model.invoke([finalization_prompt] + messages)
 
         return self._create_state_update(final_response, state.get("agent_hops", 0), state)
 
@@ -439,15 +450,11 @@ class MultiAgentOrchestrator(Loggable):
         """Return appropriate tone instruction based on requested response style."""
         return ResponseTone.get_description(tone)
 
-    def _update_tool_hops(self, field: str, increment: int) -> None:
-        """Update tool hops counter for tool execution logger."""
-        self.logger.debug(f"Tool execution logger requested update: {field} += {increment}")
-
     def _build_plugin_descriptions(self) -> str:
         """Build formatted string of available plugin descriptions."""
         descriptions = []
         for plugin_bundle in self.plugin_manager.plugin_bundles.values():
-            descriptions.append(f"- {plugin_bundle.metadata.name}: {plugin_bundle.metadata.description}")
+            descriptions.append(f"- **{plugin_bundle.metadata.name}**: {plugin_bundle.metadata.description}")
         return "\n".join(descriptions)
 
     def _build_tool_options(self) -> str:
@@ -457,48 +464,20 @@ class MultiAgentOrchestrator(Loggable):
         ]
         return " | ".join(tool_names)
 
-    def _invoke_model_with_prompt(self, system_prompt: SystemMessage, messages: List) -> AIMessage:
-        """Invoke coordinator model with system prompt and conversation messages."""
-        safe_messages = self._filter_safe_messages(messages)
-        return self.coordinator_model.invoke([system_prompt] + safe_messages)
-
-    def _filter_safe_messages(self, messages: List) -> List:
+    @staticmethod
+    def _filter_safe_messages(messages: List) -> List:
         """Remove messages with incomplete tool call sequences to prevent validation errors."""
         if not messages:
             return []
-
-        filtered_messages = []
-        for message_index, message in enumerate(messages):
-            if self._is_incomplete_tool_call_sequence(message, messages, message_index):
-                self.logger.warning(f"Skipping incomplete tool call sequence in message {message_index}")
-                continue
-            filtered_messages.append(message)
-
-        return filtered_messages
-
-    def _is_incomplete_tool_call_sequence(self, message: Any, messages: List, message_index: int) -> bool:
-        """Determine if assistant message contains tool calls without proper responses."""
-        if not (hasattr(message, "tool_calls") and message.tool_calls and isinstance(message, AIMessage)):
-            return False
-
-        tool_call_ids = {tc.get("id") for tc in message.tool_calls if tc.get("id")}
-        found_tool_responses = self._find_tool_responses(messages, message_index)
-
-        return not tool_call_ids.issubset(found_tool_responses)
-
-    def _find_tool_responses(self, messages: List, message_index: int) -> set:
-        """Search for tool response messages that correspond to tool calls."""
-        found_tool_responses = set()
-        look_ahead_limit = min(message_index + 10, len(messages))
-
-        for next_message in messages[message_index + 1: look_ahead_limit]:
-            if hasattr(next_message, "tool_call_id") and next_message.tool_call_id:
-                found_tool_responses.add(next_message.tool_call_id)
-
-        return found_tool_responses
+        last_message = messages[-1]
+        if isinstance(last_message, AIMessage):
+            messages.pop()
+            return messages
+        else:
+            return messages
 
     @staticmethod
-    def _create_state_update(message: AIMessage, agent_hops: int, state: Dict[str, Any] = None) -> Dict[str, Any]:
+    def _create_state_update(message: AIMessage, agent_hops: int, state: Dict[str, Any]=None) -> Dict[str, Any]:
         """Create standardized state update structure for graph node responses."""
         update = {
             "messages": [message],
@@ -506,7 +485,7 @@ class MultiAgentOrchestrator(Loggable):
         }
 
         if state:
-            for key in ["tool_hops", "current_agent", "plugin_context", "session_id"]:
+            for key in ["current_agent", "plugin_context", "thread_id"]:
                 if key in state:
                     update[key] = state[key]
 

@@ -81,11 +81,11 @@ class SDKPluginBundle(Loggable):
     """
 
     def __init__(
-            self,
-            contract: BasePlugin,
-            agent,
-            bound_model,
-            tools: List[Tool],
+        self,
+        contract: BasePlugin,
+        agent,
+        bound_model,
+        tools: List[Tool],
     ):
         super().__init__()
         self.contract = contract
@@ -538,12 +538,6 @@ class SDKPluginManager(Loggable):
         self.perform_health_checks()
 
         self.logger.info(f"Plugin reload complete. Loaded {len(self.plugin_bundles)} plugins")
-
-    def _update_tool_hops(self, field: str, increment: int) -> None:
-        """Updates tool hops counter for the tool execution logger."""
-        # This method is called by the ToolExecutionLogger to update tool_hops
-        # The actual state update happens in the graph execution
-        self.logger.debug(f"Tool execution logger requested update: {field} += {increment}")
 
     def _clear_plugin_state(self):
         """Clear all plugin-related state."""

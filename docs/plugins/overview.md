@@ -180,7 +180,7 @@ PluginMetadata(
         "max_tokens": 1024
     },
     agent_type="specialized",
-    dependencies=["cadence_sdk>=1.0.1,<2.0.0"],
+                dependencies=["cadence_sdk>=1.0.2,<2.0.0"],
 )
 ```
 
@@ -202,16 +202,17 @@ register_plugin(MathPlugin)
 ```python
 from cadence_sdk import BasePlugin, PluginMetadata
 
+
 class MathPlugin(BasePlugin):
     @staticmethod
     def get_metadata() -> PluginMetadata:
         return PluginMetadata(
             name="mathematics",
-            version="1.0.1",
+            version="1.0.2",
             description="Mathematical calculations and arithmetic operations agent",
             agent_type="specialized",
             capabilities=["addition", "subtraction", "multiplication", "division"],
-            dependencies=["cadence_sdk>=1.0.1,<2.0.0"],
+            dependencies=["cadence_sdk>=1.0.2,<2.0.0"],
         )
 
     @staticmethod
@@ -225,6 +226,7 @@ class MathPlugin(BasePlugin):
 ```python
 from cadence_sdk import BaseAgent
 from cadence_sdk.base.metadata import PluginMetadata
+
 
 class MathAgent(BaseAgent):
     def __init__(self, metadata: PluginMetadata):

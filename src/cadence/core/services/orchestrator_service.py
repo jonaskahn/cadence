@@ -11,8 +11,8 @@ from typing import Any, Dict, List, Optional
 from cadence_sdk.types.state import AgentState
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 
-from ..orchestrator.coordinator import MultiAgentOrchestrator
 from ...domain.models.conversation import Conversation
+from ..orchestrator.coordinator import MultiAgentOrchestrator
 
 logger = logging.getLogger(__name__)
 
@@ -25,22 +25,20 @@ class OrchestratorResponse:
     """
 
     def __init__(
-            self,
-            response: str,
-            input_tokens: int,
-            output_tokens: int,
-            agent_hops: int = 0,
-            tool_hops: int = 0,
-            processing_time: float = 0.0,
-            tools_used: Optional[List[str]] = None,
-            routing_history: Optional[List[str]] = None,
-            error: Optional[str] = None,
+        self,
+        response: str,
+        input_tokens: int,
+        output_tokens: int,
+        agent_hops: int = 0,
+        processing_time: float = 0.0,
+        tools_used: Optional[List[str]] = None,
+        routing_history: Optional[List[str]] = None,
+        error: Optional[str] = None,
     ):
         self.response = response
         self.input_tokens = input_tokens
         self.output_tokens = output_tokens
         self.agent_hops = agent_hops
-        self.tool_hops = tool_hops
         self.processing_time = processing_time
         self.tools_used = tools_used or []
         self.routing_history = routing_history or []
@@ -59,7 +57,6 @@ class OrchestratorResponse:
             "output_tokens": self.output_tokens,
             "total_tokens": self.total_tokens,
             "agent_hops": self.agent_hops,
-            "tool_hops": self.tool_hops,
             "processing_time": self.processing_time,
             "tools_used": self.tools_used,
             "routing_history": self.routing_history,
@@ -78,13 +75,13 @@ class OrchestratorService:
         self.orchestrator = orchestrator
 
     async def process_with_context(
-            self,
-            thread_id: str,
-            message: str,
-            conversation_history: List[Conversation],
-            user_id: str = "anonymous",
-            org_id: str = "public",
-            metadata: Optional[Dict[str, Any]] = None,
+        self,
+        thread_id: str,
+        message: str,
+        conversation_history: List[Conversation],
+        user_id: str = "anonymous",
+        org_id: str = "public",
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> OrchestratorResponse:
         """Process message with conversation context."""
         start_time = time.time()
@@ -95,8 +92,7 @@ class OrchestratorService:
             state: AgentState = {
                 "messages": langgraph_context,
                 "agent_hops": 0,
-                "tool_hops": 0,
-                "session_id": thread_id,
+                "thread_id": thread_id,
                 "plugin_context": {},
                 "configurable": {
                     "thread_id": thread_id,
@@ -127,7 +123,6 @@ class OrchestratorService:
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
                 agent_hops=result.get("agent_hops", 0),
-                tool_hops=result.get("tool_hops", 0),
                 processing_time=processing_time,
                 tools_used=tools_used,
                 routing_history=routing_history,
@@ -201,7 +196,7 @@ class OrchestratorService:
         return max(1, len(text) // 4)
 
     async def process_simple_message(
-            self, message: str, thread_id: str = "temp_session", user_id: str = "anonymous", org_id: str = "public"
+        self, message: str, thread_id: str = "temp_session", user_id: str = "anonymous", org_id: str = "public"
     ) -> OrchestratorResponse:
         """Process a simple message without conversation history.
 
@@ -223,7 +218,6 @@ class OrchestratorService:
                 "healthy_plugins": list(self.orchestrator.plugin_manager.healthy_plugins),
                 "failed_plugins": list(self.orchestrator.plugin_manager.failed_plugins),
                 "max_agent_hops": self.orchestrator.settings.max_agent_hops,
-                "max_tool_hops": self.orchestrator.settings.max_tool_hops,
                 "graph_recursion_limit": self.orchestrator.settings.graph_recursion_limit,
             }
         except Exception as e:
