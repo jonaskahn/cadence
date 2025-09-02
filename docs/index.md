@@ -75,14 +75,14 @@ flowchart TD
       A1[[AgentNode]]
       T1[[ToolNode]]
       A1 --> T1
-      T1 --> A1
+      T1 --> COORD
     end
 
     subgraph B2
       A2[[AgentNode]]
       T2[[ToolNode]]
       A2 --> T2
-      T2 --> A2
+      T2 --> COORD
     end
 
     %% Agent returns control to coordinator when not calling tools

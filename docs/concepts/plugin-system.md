@@ -17,23 +17,11 @@ Cadence plugins are self-contained packages discovered via the SDK registry. Eac
 
 ## Enhanced Routing System
 
-The new conditional routing system provides intelligent agent decision-making:
+The enhanced conditional routing system provides intelligent agent decision-making:
 
 ### Agent Decision Logic
 
-Agents now implement a `should_continue` method that determines routing:
-
-```python
-@staticmethod
-def should_continue(state: Dict[str, Any]) -> str:
-    """Decide whether to call tools or return to the coordinator."""
-    last_msg = state.get("messages", [])[-1] if state.get("messages") else None
-    if not last_msg:
-        return "back"
-
-    tool_calls = getattr(last_msg, "tool_calls", None)
-    return "continue" if tool_calls else "back"
-```
+Agents implement a standardized decision method that determines routing:
 
 **Routing Decisions:**
 
@@ -42,48 +30,24 @@ def should_continue(state: Dict[str, Any]) -> str:
 
 ### Fake Tool Call Implementation
 
-To ensure consistent routing flow, agents create fake tool calls when answering directly:
+To ensure consistent routing flow, agents create fake tool calls when answering directly.
 
-```python
-if tool_calls:
-    logger.debug(f"Agent {self.metadata.name} generated {len(tool_calls)} tool calls.")
-else:
-    # Create fake "back" tool call for consistent routing
-    response.content = ""
-    response.tool_calls = [ToolCall(
-        id=str(uuid.uuid4()),
-        name="back",
-        args={}
-    )]
-```
+**Design Principles:**
+
+- **Consistent Flow**: All agent responses follow the same routing path
+- **Explicit Intent**: Fake tool calls make routing decisions explicit
+- **No Direct Routing**: Agents never route directly to coordinator
 
 ### Plugin Bundle Edge Configuration
 
-Plugin bundles now define their own routing logic:
+Plugin bundles define their own routing logic through a standardized interface.
 
-```python
-def get_graph_edges(self) -> Dict[str, Any]:
-    normalized_agent_name = str.lower(self.metadata.name).replace(" ", "_")
-    return {
-        "conditional_edges": {
-            f"{normalized_agent_name}_agent": {
-                "condition": self.agent.should_continue,
-                "mapping": {
-                    "continue": f"{normalized_agent_name}_tools",
-                    "back": "coordinator",
-                },
-            }
-        },
-        "direct_edges": [(f"{normalized_agent_name}_tools", "coordinator")],
-    }
-```
+**Edge Configuration Design:**
 
-**Key Benefits:**
-
-- **No Circular Routing**: Tools always route to coordinator, never back to agent
-- **Consistent Flow**: All agent responses follow the same routing path
-- **Better Debugging**: Clear routing decisions and edge creation logging
-- **Predictable Behavior**: Eliminates infinite loops and routing confusion
+- **Conditional Edges**: Agent routing decisions based on standardized decision method
+- **Direct Edges**: Tools always route to coordinator (prevents circular routing)
+- **No More Loops**: Eliminated the `tools → agent` edge that caused infinite loops
+- **Standardized Interface**: All plugins follow the same edge configuration pattern
 
 ## Configuration
 
