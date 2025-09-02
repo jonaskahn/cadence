@@ -1,14 +1,15 @@
 # Cadence 🤖 Multi-agents AI Framework
 
-A plugin-based multi-agent conversational AI framework built on FastAPI, designed for building intelligent chatbot systems with extensible agent architectures.
+A plugin-based multi-agent conversational AI framework built on FastAPI, designed for building intelligent chatbot
+systems with extensible agent architectures.
 
 ![demo](https://github.com/user-attachments/assets/ba7ceb1d-3226-4634-8491-abf7fab04add)
-
 
 ## 🚀 Features
 
 - **Multi-Agent Orchestration**: Intelligent routing and coordination between AI agents
 - **Plugin System**: Extensible architecture for custom agents and tools
+- **Parallel Tool Execution**: Concurrent tool calls for improved performance and efficiency
 - **Multi-LLM Support**: OpenAI, Anthropic, Google AI, and more
 - **Flexible Storage**: PostgreSQL, Redis, MongoDB, and in-memory backends
 - **REST API**: FastAPI-based API with automatic documentation
@@ -168,6 +169,16 @@ CADENCE_POSTGRES_URL=postgresql://user:pass@localhost/cadence
 # For development, you can use the built-in UI
 CADENCE_UI_HOST=0.0.0.0
 CADENCE_UI_PORT=8501
+
+# Plugin Configuration
+CADENCE_PLUGINS_DIR=./plugins/src/cadence_example_plugins
+CADENCE_MAX_AGENT_HOPS=25
+CADENCE_GRAPH_RECURSION_LIMIT=50
+
+# Parallel Tool Calls Configuration
+# Individual agents can control parallel tool execution in their constructor:
+# super().__init__(metadata, parallel_tool_calls=True)  # Enable (default)
+# super().__init__(metadata, parallel_tool_calls=False) # Disable
 ```
 
 ## 🚀 Usage
@@ -217,6 +228,7 @@ Create custom agents and tools using the Cadence SDK with enhanced routing capab
 ```python
 from cadence_sdk import BaseAgent, BasePlugin, PluginMetadata, tool
 
+
 class MyPlugin(BasePlugin):
     @staticmethod
     def get_metadata() -> PluginMetadata:
@@ -233,6 +245,7 @@ class MyPlugin(BasePlugin):
     def create_agent() -> BaseAgent:
         return MyAgent(MyPlugin.get_metadata())
 
+
 class MyAgent(BaseAgent):
     def __init__(self, metadata: PluginMetadata):
         super().__init__(metadata)
@@ -247,7 +260,7 @@ class MyAgent(BaseAgent):
     @staticmethod
     def should_continue(state: dict) -> str:
         """Enhanced routing decision - decide whether to continue or return to coordinator.
-        
+
         This is the REAL implementation from the Cadence SDK - it's much simpler than you might expect!
         The method simply checks if the agent's response has tool calls and routes accordingly.
         """
@@ -257,6 +270,22 @@ class MyAgent(BaseAgent):
 
         tool_calls = getattr(last_msg, "tool_calls", None)
         return "continue" if tool_calls else "back"
+
+
+# Parallel Tool Calls Support
+# BaseAgent supports parallel tool execution for improved performance
+
+class MyAgent(BaseAgent):
+    def __init__(self, metadata: PluginMetadata):
+        # Enable parallel tool calls (default: True)
+        super().__init__(metadata, parallel_tool_calls=True)
+
+    def get_tools(self):
+        return [my_tool1, my_tool2, my_tool3]
+
+    def get_system_prompt(self) -> str:
+        return "You are an agent that can execute multiple tools in parallel."
+
 
 @tool
 def my_custom_tool(input_data: str) -> str:

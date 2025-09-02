@@ -220,6 +220,29 @@ class SDKPluginManager(Loggable):
         self.healthy_plugins: Set[str] = set()
         self.failed_plugins: Set[str] = set()
         self._dir_discovery = DirectoryPluginDiscovery()
+        self._source_map: Dict[str, str] = {}
+
+    @staticmethod
+    def _get_class_module_file(klass) -> Optional[Path]:
+        """Best-effort resolve the filesystem path for a class' defining module."""
+        try:
+            import inspect
+
+            file_path = inspect.getfile(klass)
+            return Path(file_path).resolve() if file_path else None
+        except Exception:
+            pass
+        try:
+            import sys
+
+            module_name = getattr(klass, "__module__", None)
+            if module_name and module_name in sys.modules:
+                module = sys.modules[module_name]
+                module_file = getattr(module, "__file__", None)
+                return Path(module_file).resolve() if module_file else None
+        except Exception:
+            pass
+        return None
 
     @staticmethod
     def _normalize_plugin_directories(plugins_dirs: Union[str, List[str]]) -> List[Path]:
@@ -228,16 +251,38 @@ class SDKPluginManager(Loggable):
             return [Path(plugins_dirs)]
         return [Path(dir_path) for dir_path in plugins_dirs]
 
-    def load_plugin_packages(self) -> None:
+    def load_directory_plugins(self) -> None:
         """Load directory-based plugin packages using DirectoryPluginDiscovery."""
+        self._attach_uploaded_plugins_dir_to_directory_load()
         directories = [str(p) for p in self.plugins_dirs]
         try:
             count = self._dir_discovery.import_plugins_from_directories(directories)
             self.logger.debug(f"Directory discovery imported {count} plugin modules")
+            # Mark potential sources as directory or storage based on configured storage root
+            try:
+                from ...config.settings import settings
+
+                uploaded_root = (Path(settings.storage_root) / "uploaded").resolve()
+            except Exception:
+                uploaded_root = None
+
+            for d in directories:
+                try:
+                    path = Path(d).resolve()
+                    for contract in discover_plugins() or []:
+                        mod_file = self._get_class_module_file(contract.plugin_class)
+                        if not mod_file:
+                            continue
+                        if str(mod_file).startswith(str(path)):
+                            is_storage = uploaded_root is not None and path == uploaded_root
+                            src = "storage" if is_storage else "directory"
+                            self._source_map[contract.name] = src
+                except Exception:
+                    continue
         except Exception as e:
             self.logger.error(f"Directory plugin discovery failed: {e}")
 
-    def load_pip_plugins(self) -> int:
+    def load_enviroment_plugins(self) -> int:
         """Discover and import pip-installed plugins first.
 
         Returns:
@@ -248,6 +293,8 @@ class SDKPluginManager(Loggable):
 
             count = _import_env()
             self.logger.debug(f"Imported {count} pip plugin packages")
+            for contract in discover_plugins() or []:
+                self._source_map.setdefault(contract.name, "environment")
             return count
         except Exception as e:
             self.logger.warning(f"Pip plugin discovery unavailable or failed: {e}")
@@ -260,14 +307,53 @@ class SDKPluginManager(Loggable):
         if a plugin with the same metadata.name exists locally, it overrides
         the version provided by a pip-installed package (last registration wins).
         """
-        self.load_pip_plugins()
-        self.load_plugin_packages()
-
-        # Also load from uploaded plugins directory
-        self._load_uploaded_plugins()
+        self.load_enviroment_plugins()
+        self.load_directory_plugins()
 
         contracts = discover_plugins()
         self.logger.debug(f"Discovered {len(contracts)} SDK-registered plugins")
+
+        # Build source map after discovery based on module file paths
+        try:
+            from ...config.settings import settings
+
+            uploaded_root = (Path(settings.storage_root) / "uploaded").resolve()
+            configured_dirs = [Path(p).resolve() for p in settings.plugins_dir]
+        except Exception:
+            uploaded_root = None
+            configured_dirs = []
+        self._source_map.clear()
+        for contract in contracts:
+            src = "environment"
+            try:
+                mod_path = self._get_class_module_file(contract.plugin_class)
+                if mod_path:
+                    # if: storage
+                    if uploaded_root is not None:
+                        try:
+                            _ = mod_path.relative_to(uploaded_root)
+                            src = "storage"
+                        except Exception:
+                            src = None  # not storage, continue evaluation
+                    else:
+                        src = None
+
+                    # elif: directory
+                    if src is None:
+                        is_dir = False
+                        for d in configured_dirs:
+                            try:
+                                _ = mod_path.relative_to(d)
+                                is_dir = True
+                                break
+                            except Exception:
+                                continue
+                        src = "directory" if is_dir else "environment"
+
+                self.logger.debug(f"Source map: {contract.name} file={str(mod_path) if mod_path else 'N/A'} src={src}")
+            except Exception as e:
+                self.logger.debug(f"Source map detection failed for {contract.name}: {e}")
+            self._source_map[contract.name] = src
 
         for contract in contracts:
             try:
@@ -276,18 +362,18 @@ class SDKPluginManager(Loggable):
                 self.logger.error(f"Failed to create bundle for {contract.name}: {e}")
                 self.failed_plugins.add(contract.name)
 
-    def _load_uploaded_plugins(self) -> None:
+    def _attach_uploaded_plugins_dir_to_directory_load(self) -> None:
         """Load plugins from the uploaded plugins directory."""
         try:
             from ...config.settings import settings
 
-            store_plugin_dir = Path(settings.store_plugin)
+            store_plugin_dir = Path(settings.storage_root) / "uploaded"
 
             if store_plugin_dir.exists():
-                # Add uploaded plugins directory to discovery
-                if str(store_plugin_dir) not in [str(p) for p in self.plugins_dirs]:
-                    self.plugins_dirs.append(store_plugin_dir)
-                    self.logger.debug(f"Added uploaded plugins directory: {store_plugin_dir}")
+                str_dirs = [str(p) for p in self.plugins_dirs]
+                if str(store_plugin_dir) not in str_dirs:
+                    self.plugins_dirs.insert(0, store_plugin_dir)
+                    self.logger.debug(f"Added uploaded plugins directory with precedence: {store_plugin_dir}")
         except Exception as e:
             self.logger.warning(f"Failed to load uploaded plugins: {e}")
 
@@ -421,6 +507,9 @@ class SDKPluginManager(Loggable):
             name: f"{bundle.metadata.description}. Capabilities only for: {', '.join(bundle.metadata.capabilities)}"
             for name, bundle in self.plugin_bundles.items()
         }
+
+    def get_plugin_source(self, name: str) -> str:
+        return self._source_map.get(name, "unknown")
 
     def perform_health_checks(self) -> Dict[str, bool]:
         """Perform health checks on all plugin bundles."""

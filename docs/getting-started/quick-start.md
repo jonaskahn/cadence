@@ -4,8 +4,9 @@ Welcome to Cadence AI Framework! This guide will help you get up and running qui
 
 ## Prerequisites
 
-- Python 3.13+
-- API keys for your chosen LLM providers
+- Python 3.9+ (recommended: Python 3.11+)
+- API keys for your chosen LLM providers (OpenAI, Anthropic, Google AI, or Azure OpenAI)
+- Poetry (for development) or pip (for installation)
 
 ## Installation Options
 
@@ -65,9 +66,9 @@ CADENCE_DEBUG=false
 
 # LLM Provider Configuration
 CADENCE_DEFAULT_LLM_PROVIDER=openai
-CADENCE_OPENAI_API_KEY=your_actual_openai_api_key_here
-CADENCE_ANTHROPIC_API_KEY=your_actual_claude_api_key_here
-CADENCE_GOOGLE_API_KEY=your_actual_gemini_api_key_here
+CADENCE_OPENAI_API_KEY=your_openai_api_key_here
+CADENCE_ANTHROPIC_API_KEY=your_claude_api_key_here
+CADENCE_GOOGLE_API_KEY=your_gemini_api_key_here
 
 # Plugin Configuration
 CADENCE_PLUGINS_DIR=./plugins/src/cadence_example_plugins
@@ -87,10 +88,12 @@ CADENCE_UI_PORT=8501
 
 ### Configuration Options
 
-- **LLM Providers**: OpenAI, Anthropic, Google AI
-- **Storage Backends**: Memory, PostgreSQL, Redis
+- **LLM Providers**: OpenAI, Anthropic, Google AI, Azure OpenAI
+- **Storage Backends**: Memory (default), PostgreSQL, Redis
 - **Plugin Directories**: Custom paths for plugin discovery
-- **Server Settings**: Host, port, debug mode
+- **Server Settings**: Host, port, debug mode, CORS configuration
+- **Plugin Management**: Upload directory, archive directory, auto-discovery settings
+- **Safety Settings**: Hop limits, consecutive routing limits, timeout settings
 
 ## Running the Application
 
@@ -139,8 +142,10 @@ python -m cadence start all
    ```
 
 2. **Check the UI**
+
     - Open `http://localhost:8501` in your browser
-    - The UI uses `CADENCE_API_BASE_URL` (default `http://localhost:8000`).
+    - The UI uses `CADENCE_API_BASE_URL` (default `http://localhost:8000`)
+    - Features: Plugin management, conversation interface, system monitoring
 
 3. **API Documentation**
     - Swagger UI: `http://localhost:8000/docs`
@@ -190,10 +195,12 @@ cadence $CADENCE_OPENAI_API_KEY
 ### Common Issues
 
 1. **Port already in use**
+
     - Change the port in your `.env` file
     - Or kill the process using the port
 
 2. **API keys not working**
+
     - Verify your API keys are set correctly
     - Check the API provider's status
 

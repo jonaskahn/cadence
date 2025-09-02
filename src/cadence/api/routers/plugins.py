@@ -53,6 +53,7 @@ async def list_available_plugins(plugin_manager: SDKPluginManager = Depends(get_
                     description=plugin_metadata.description,
                     capabilities=plugin_metadata.capabilities,
                     status=plugin_status,
+                    source=plugin_manager.get_plugin_source(plugin_metadata.name),
                 )
             )
 
@@ -149,41 +150,6 @@ async def upload_plugin(
             )
     except Exception as e:
         return JSONResponse(status_code=500, content={"success": False, "message": f"Upload failed: {str(e)}"})
-
-
-@plugins_api_router.get("/plugins/uploaded")
-async def list_uploaded_plugins(upload_manager: PluginUploadManager = Depends(get_upload_manager)) -> JSONResponse:
-    """List all uploaded plugins."""
-    try:
-        plugins = upload_manager.list_uploaded_plugins()
-        return JSONResponse(status_code=200, content={"success": True, "plugins": plugins})
-    except Exception as e:
-        return JSONResponse(
-            status_code=500, content={"success": False, "message": f"Failed to list uploaded plugins: {str(e)}"}
-        )
-
-
-@plugins_api_router.delete("/plugins/uploaded/{plugin_name}/{plugin_version}")
-async def delete_uploaded_plugin(
-    plugin_name: str, plugin_version: str, upload_manager: PluginUploadManager = Depends(get_upload_manager)
-) -> JSONResponse:
-    """Delete an uploaded plugin."""
-    try:
-        success = upload_manager.delete_plugin(plugin_name, plugin_version)
-        if success:
-            return JSONResponse(
-                status_code=200,
-                content={"success": True, "message": f"Plugin {plugin_name}-{plugin_version} deleted successfully"},
-            )
-        else:
-            return JSONResponse(
-                status_code=400,
-                content={"success": False, "message": f"Failed to delete plugin {plugin_name}-{plugin_version}"},
-            )
-    except Exception as e:
-        return JSONResponse(
-            status_code=500, content={"success": False, "message": f"Failed to delete plugin: {str(e)}"}
-        )
 
 
 router = plugins_api_router

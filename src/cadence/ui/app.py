@@ -423,82 +423,33 @@ def main():
             "Choose a plugin ZIP file", type=["zip"], help="Upload a plugin package in ZIP format (name-version.zip)"
         )
 
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            force_overwrite = st.checkbox("Force overwrite if plugin exists", value=False)
-        with col2:
-            if uploaded_file is not None and st.button("Upload Plugin", use_container_width=True):
-                with st.spinner("Uploading plugin..."):
-                    try:
-                        # Save uploaded file temporarily
-                        temp_path = f"/tmp/{uploaded_file.name}"
-                        with open(temp_path, "wb") as f:
-                            f.write(uploaded_file.getbuffer())
+        force_overwrite = st.checkbox("Force overwrite if plugin exists", value=False)
 
-                        result = st.session_state.client.upload_plugin(temp_path, force_overwrite)
-
-                        if result.get("success"):
-                            st.success(result.get("message", "Plugin uploaded successfully!"))
-                            # Refresh plugins list
-                            st.session_state.plugins = load_available_plugins(st.session_state.client)
-                        else:
-                            st.error(result.get("message", "Upload failed"))
-
-                        # Clean up temp file
-                        import os
-
-                        if os.path.exists(temp_path):
-                            os.remove(temp_path)
-
-                    except Exception as e:
-                        st.error(f"Upload failed: {str(e)}")
-
-        # Uploaded Plugins Section
-        st.subheader("📦 Uploaded Plugins")
-
-        if st.button("🔄 Refresh Uploaded Plugins", use_container_width=True):
-            with st.spinner("Loading uploaded plugins..."):
+        if uploaded_file is not None and st.button("Upload Plugin", use_container_width=True):
+            with st.spinner("Uploading plugin..."):
                 try:
-                    uploaded_plugins_result = st.session_state.client.list_uploaded_plugins()
-                    if uploaded_plugins_result.get("success"):
-                        st.session_state.uploaded_plugins = uploaded_plugins_result.get("plugins", [])
+                    # Save uploaded file temporarily
+                    temp_path = f"/tmp/{uploaded_file.name}"
+                    with open(temp_path, "wb") as f:
+                        f.write(uploaded_file.getbuffer())
+
+                    result = st.session_state.client.upload_plugin(temp_path, force_overwrite)
+
+                    if result.get("success"):
+                        st.success(result.get("message", "Plugin uploaded successfully!"))
+                        # Refresh plugins list
+                        st.session_state.plugins = load_available_plugins(st.session_state.client)
                     else:
-                        st.error("Failed to load uploaded plugins")
+                        st.error(result.get("message", "Upload failed"))
+
+                    # Clean up temp file
+                    import os
+
+                    if os.path.exists(temp_path):
+                        os.remove(temp_path)
+
                 except Exception as e:
-                    st.error(f"Error loading uploaded plugins: {str(e)}")
-
-        if not hasattr(st.session_state, "uploaded_plugins"):
-            st.session_state.uploaded_plugins = []
-
-        if st.session_state.uploaded_plugins:
-            for plugin in st.session_state.uploaded_plugins:
-                with st.expander(f"📦 {plugin['name']}-{plugin['version']}"):
-                    st.write(f"**Name:** {plugin['name']}")
-                    st.write(f"**Version:** {plugin['version']}")
-                    st.write(f"**Directory:** {plugin['directory']}")
-
-                    if st.button(
-                        f"🗑️ Delete {plugin['name']}-{plugin['version']}",
-                        key=f"delete_{plugin['name']}_{plugin['version']}",
-                    ):
-                        with st.spinner("Deleting plugin..."):
-                            try:
-                                result = st.session_state.client.delete_uploaded_plugin(
-                                    plugin["name"], plugin["version"]
-                                )
-                                if result.get("success"):
-                                    st.success("Plugin deleted successfully!")
-                                    # Refresh the list
-                                    uploaded_plugins_result = st.session_state.client.list_uploaded_plugins()
-                                    if uploaded_plugins_result.get("success"):
-                                        st.session_state.uploaded_plugins = uploaded_plugins_result.get("plugins", [])
-                                    st.rerun()
-                                else:
-                                    st.error(result.get("message", "Failed to delete plugin"))
-                            except Exception as e:
-                                st.error(f"Error deleting plugin: {str(e)}")
-        else:
-            st.info("No uploaded plugins found")
+                    st.error(f"Upload failed: {str(e)}")
 
         st.markdown("---")
 
@@ -524,6 +475,7 @@ def main():
                 status_color = "🟢" if plugin.status == "healthy" else "🔴"
                 with st.expander(f"{status_color} {plugin.name}"):
                     st.write(f"**Status:** {plugin.status}")
+                    st.write(f"**Source:** {getattr(plugin, 'source', 'unknown')}")
                     st.write(f"**Version:** {plugin.version}")
                     st.write(f"**Description:** {plugin.description}")
                     if plugin.capabilities:

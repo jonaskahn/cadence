@@ -1,14 +1,15 @@
 # Cadence 🤖 Multi-agents AI Framework
 
 Welcome to Cadence — a powerful, open-source multi-agent orchestration system designed to simplify the development and
-deployment of AI agent workflows.
+deployment of AI agent workflows with enterprise-grade reliability and extensibility.
 
 - **Quick Start**: [Get up and running](getting-started/quick-start.md)
 - **Core Concepts**:
-  - [Understand the architecture](concepts/architecture.md)
-  - [LangGraph Architecture](concepts/langgraph-architecture.md)
+    - [Understand the architecture](concepts/architecture.md)
+    - [LangGraph Architecture](concepts/langgraph-architecture.md)
+    - [Project Structure](concepts/project-structure.md)
 - **Plugin Development**: [Build custom agents](plugins/overview.md)
-- **Plugin Upload**: [Upload and manage plugins](plugins/upload-feature.md)
+- **Plugin Management**: [Upload and manage plugins](plugins/upload-feature.md)
 - **Deployment**: [Configure environments](deployment/environment.md)
 
 ---
@@ -63,10 +64,10 @@ Cadence is built on three core principles:
 
 ```mermaid
 flowchart TD
-    U["Client Request (with tone)"] --> API["FastAPI API"]
-    API --> COORD["Enhanced Coordinator (LangGraph)"]
-    COORD --> PM["SDK Plugin Manager"]
-    COORD --> F["Finalizer (Tone-aware)"]
+    U["Client Request"] --> API["FastAPI API"]
+    API --> COORD["Coordinator (LangGraph)"]
+    COORD --> PM["Plugin Manager"]
+    COORD --> F["Finalizer"]
     COORD --> SAFETY["Safety & Logging"]
 
     PM -->|discovers| B1["Plugin bundle: math_agent"]
@@ -86,20 +87,16 @@ flowchart TD
       T2 --> COORD
     end
 
-    %% Agent returns control to coordinator when not calling tools
     A1 --> COORD
     A2 --> COORD
 
-    %% LLM binding used inside AgentNode execution
     A1 --> LLM[("LLM Models")]
     A2 --> LLM
 
-    %% Safety mechanisms
     SAFETY --> HOP["Hop Limits"]
     SAFETY --> FILTER["Message Filtering"]
     SAFETY --> LOG["Execution Logging"]
 
-    %% Finalizer handles tone-adapted responses
     F --> COORD
     COORD --> API
     API --> U
@@ -107,18 +104,53 @@ flowchart TD
 
 ## Key Features
 
-- **Multi-Agent Orchestration**: Coordinate multiple AI agents in complex workflows with intelligent routing
-- **Plugin System**: Extend functionality without touching core code with dynamic plugin discovery
-- **Hot Reloading**: Update plugins without restarting the system with automatic graph rebuilding
-- **LLM Agnostic**: Support for OpenAI, Anthropic, Google, and more with separate model configurations for coordinator,
-  suspend, and finalizer
-- **REST API**: Full HTTP API for integration with any system
-- **Operational API**: Endpoints for chat, plugins, status, and health
-- **Comprehensive Logging**: Built-in observability and debugging tools with detailed execution tracking
-- **Tone Control**: Dynamic response style adaptation for personalized interactions (natural, formal, concise,
-  explanatory, learning)
-- **Safety Mechanisms**: Hop limits, message filtering, and error handling to prevent infinite loops
-- **State Management**: Robust conversation state tracking with standardized updates
+### 🤖 **Multi-Agent Orchestration**
+
+- Coordinate multiple AI agents in complex workflows with intelligent routing
+- LangGraph-based workflow orchestration with decision logic
+- Automatic agent switching based on query content and context
+
+### 🔌 **Plugin System**
+
+- Extend functionality without touching core code with dynamic plugin discovery
+- Hot reloading: Update plugins without restarting the system
+- Plugin upload and management via UI and API
+- SDK-based plugin development with validation
+
+### 🧠 **LLM Provider Support**
+
+- Support for OpenAI, Anthropic, Google AI, and Azure OpenAI
+- Separate model configurations for coordinator, suspend, and finalizer roles
+- Model caching and provider fallback handling
+- Temperature and token control per plugin
+
+### 🛠️ **Infrastructure**
+
+- Multi-backend storage: PostgreSQL, Redis, and in-memory support
+- Service container with dependency injection
+- Database factory pattern for backend-agnostic access
+- Production-ready configuration management
+
+### 🎨 **User Interface**
+
+- Streamlit UI with real-time plugin management
+- Plugin upload, deletion, and monitoring capabilities
+- Conversation history and metrics visualization
+- Response tone control and customization
+
+### 📊 **Observability & Safety**
+
+- Logging with tool execution tracking
+- Safety mechanisms: hop limits, message filtering, error handling
+- Health monitoring for plugins and system components
+- Conversation analytics and token usage tracking
+
+### 🚀 **Developer Experience**
+
+- REST API with OpenAPI documentation
+- CLI tools for development and deployment
+- Hot reloading for rapid development cycles
+- SDK with examples and templates
 
 ## Quick Example
 

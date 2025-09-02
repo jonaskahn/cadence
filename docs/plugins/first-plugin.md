@@ -4,10 +4,10 @@ This tutorial creates a minimal plugin that adds a greeting agent.
 
 ## 1. Create package structure
 
-Under `plugins/src/cadence_plugins/` add a folder `greeter_agent/`:
+Under `plugins/src/cadence_example_plugins/` add a folder `greeter_agent/`:
 
 ```text
-plugins/src/cadence_plugins/greeter_agent/
+plugins/src/cadence_example_plugins/greeter_agent/
 ├─ __init__.py
 ├─ plugin.py
 ├─ agent.py
@@ -58,7 +58,8 @@ from cadence_sdk.base.metadata import PluginMetadata
 
 class GreeterAgent(BaseAgent):
     def __init__(self, metadata: PluginMetadata):
-        super().__init__(metadata)
+        # Enable parallel tool calls for better performance
+        super().__init__(metadata, parallel_tool_calls=True)
 
     def get_tools(self) -> List:
         from .tools import greeter_tools
@@ -106,7 +107,7 @@ class GreeterPlugin(BasePlugin):
 Ensure `.env` contains:
 
 ```text
-CADENCE_PLUGINS_DIR=./plugins/src/cadence_plugins
+CADENCE_PLUGINS_DIR=./plugins/src/cadence_example_plugins
 ```
 
 ## 6. Run Cadence and verify
@@ -132,7 +133,10 @@ curl -X POST http://127.0.0.1:8000/api/v1/chat \
 - Keep `create_agent()` static
 - Keep tools simple and well documented
 - Add `health_check()` if your plugin uses external services
+- Consider enabling `parallel_tool_calls=True` in your agent constructor for better performance when tools can run
+  concurrently
 
 ---
 
-Looking to distribute your plugin without file system access? See **[Plugin Upload Feature](upload-feature.md)** to package as `name-version.zip` and install via UI/API.
+Looking to distribute your plugin without file system access? See **[Plugin Upload Feature](upload-feature.md)** to
+package as `name-version.zip` and install via UI/API.
