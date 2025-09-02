@@ -293,7 +293,6 @@ class RedisThreadRepository(ThreadRepository):
         """Update thread token counters atomically using Redis."""
         thread_key = self._get_thread_key(thread_id)
 
-        # Use Lua script for atomic updates
         lua_script = """
         local thread_key = KEYS[1]
         local user_tokens = tonumber(ARGV[1])

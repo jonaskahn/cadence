@@ -1,12 +1,12 @@
-"""API routes aggregation for Cadence framework.
+"""Main API Router Configuration.
 
-Centralizes all API endpoints and provides router initialization for the FastAPI application.
+This module centralizes all API endpoints by aggregating routers from different domains
+(chat, plugins, system) and provides the main application router with health monitoring endpoints.
 """
 
 from fastapi import APIRouter
 
 from cadence.api.routers import chat, plugins, system
-from cadence.config.settings import Settings
 
 router = APIRouter()
 
@@ -17,16 +17,11 @@ router.include_router(system.router, prefix="/system", tags=["system"])
 
 @router.get("/")
 async def root():
-    """API root endpoint with service information."""
+    """API root endpoint providing service information and navigation links."""
     return {"message": "Welcome to Cadence AI Framework API", "version": "1.0.3", "docs": "/docs", "health": "/health"}
 
 
 @router.get("/health")
 async def health_check():
-    """Service health check for monitoring systems."""
+    """Service health check endpoint for monitoring and load balancer health verification."""
     return {"status": "healthy", "service": "cadence-api", "version": "1.0.3"}
-
-
-async def initialize_api(settings: Settings) -> None:
-    """Initialize API dependencies and service container."""
-    pass

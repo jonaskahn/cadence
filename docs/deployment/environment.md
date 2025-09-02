@@ -20,6 +20,27 @@ Cadence supports multiple configuration methods:
 | `CADENCE_APP_NAME` | "Cadence Multi-agents AI Framework" | Application name displayed in logs and API |
 | `CADENCE_DEBUG`    | `false`                             | Enable debug mode                          |
 
+### UI Configuration
+
+| Variable                     | Default                                                                | Description            |
+|------------------------------|------------------------------------------------------------------------|------------------------|
+| `CADENCE_UI_TITLE`           | "Cadence AI"                                                           | Main application title |
+| `CADENCE_UI_SUBTITLE`        | "Intelligent conversations powered by multi-agent AI"                  | Application subtitle   |
+| `CADENCE_UI_WELCOME_TITLE`   | "Welcome to Cadence AI!"                                               | Welcome page title     |
+| `CADENCE_UI_WELCOME_MESSAGE` | "Start a conversation by typing a message below."                      | Welcome message text   |
+| `CADENCE_UI_WELCOME_HINT`    | "Choose your preferred response style in Settings and start chatting." | Welcome hint text      |
+| `CADENCE_UI_FOOTER`          | "Powered by Cadence AI Framework"                                      | Footer text            |
+
+### Bot Configuration
+
+| Variable                     | Default                          | Description                    |
+|------------------------------|----------------------------------|--------------------------------|
+| `CADENCE_BOT_NAME`           | "Cadence AI"                     | Bot name for self-introduction |
+| `CADENCE_BOT_DESCRIPTION`    | "Multiple Agents Chatbot System" | Bot description                |
+| `CADENCE_BOT_CREATOR`        | "JonasKahn"                      | Bot creator name               |
+| `CADENCE_BOT_SPECIALIZATION` | "Business"                       | Bot specialization area        |
+| `CADENCE_BOT_VERSION`        | "1.0.3"                          | Bot version number             |
+
 ### LLM Provider Configuration
 
 | Variable                             | Default                    | Description                                                                                      |
@@ -207,6 +228,21 @@ CADENCE_PERSISTENCE_MEMORY_LAYER=sqlite
 CADENCE_APP_NAME="Cadence Multi-agents AI Framework (Dev)"
 CADENCE_DEBUG=true
 
+# UI Configuration
+CADENCE_UI_TITLE="Cadence AI (Dev)"
+CADENCE_UI_SUBTITLE="Intelligent conversations powered by multi-agent AI"
+CADENCE_UI_WELCOME_TITLE="Welcome to Cadence AI!"
+CADENCE_UI_WELCOME_MESSAGE="Start a conversation by typing a message below."
+CADENCE_UI_WELCOME_HINT="Choose your preferred response style in Settings and start chatting."
+CADENCE_UI_FOOTER="Powered by Cadence AI Framework"
+
+# Bot Configuration
+CADENCE_BOT_NAME="Cadence AI"
+CADENCE_BOT_DESCRIPTION="Multiple Agents Chatbot System"
+CADENCE_BOT_CREATOR="JonasKahn"
+CADENCE_BOT_SPECIALIZATION="Business"
+CADENCE_BOT_VERSION="1.0.3"
+
 # LLM Provider Configuration
 CADENCE_DEFAULT_LLM_PROVIDER=openai
 # Optionally pin the default model for the chosen provider
@@ -252,6 +288,21 @@ CADENCE_GRAPH_RECURSION_LIMIT=50
 # Production Configuration
 CADENCE_APP_NAME="Cadence Multi-agents AI Framework"
 CADENCE_DEBUG=false
+
+# UI Configuration
+CADENCE_UI_TITLE="Cadence AI"
+CADENCE_UI_SUBTITLE="Intelligent conversations powered by multi-agent AI"
+CADENCE_UI_WELCOME_TITLE="Welcome to Cadence AI!"
+CADENCE_UI_WELCOME_MESSAGE="Start a conversation by typing a message below."
+CADENCE_UI_WELCOME_HINT="Choose your preferred response style in Settings and start chatting."
+CADENCE_UI_FOOTER="Powered by Cadence AI Framework"
+
+# Bot Configuration
+CADENCE_BOT_NAME="Cadence AI"
+CADENCE_BOT_DESCRIPTION="Multiple Agents Chatbot System"
+CADENCE_BOT_CREATOR="JonasKahn"
+CADENCE_BOT_SPECIALIZATION="Business"
+CADENCE_BOT_VERSION="1.0.3"
 
 # LLM Provider Configuration
 CADENCE_DEFAULT_LLM_PROVIDER=openai
@@ -311,6 +362,20 @@ services:
     environment:
       - CADENCE_APP_NAME=Cadence Multi-agents AI Framework
       - CADENCE_DEBUG=false
+      # UI Configuration
+      - CADENCE_UI_TITLE=Cadence AI
+      - CADENCE_UI_SUBTITLE=Intelligent conversations powered by multi-agent AI
+      - CADENCE_UI_WELCOME_TITLE=Welcome to Cadence AI!
+      - CADENCE_UI_WELCOME_MESSAGE=Start a conversation by typing a message below.
+      - CADENCE_UI_WELCOME_HINT=Choose your preferred response style in Settings and start chatting.
+      - CADENCE_UI_FOOTER=Powered by Cadence AI Framework
+      # Bot Configuration
+      - CADENCE_BOT_NAME=Cadence AI
+      - CADENCE_BOT_DESCRIPTION=Multiple Agents Chatbot System
+      - CADENCE_BOT_CREATOR=JonasKahn
+      - CADENCE_BOT_SPECIALIZATION=Business
+      - CADENCE_BOT_VERSION=1.0.3
+      # LLM Configuration
       - CADENCE_DEFAULT_LLM_PROVIDER=openai
       # Optionally pin default model for provider
       # - CADENCE_OPENAI_DEFAULT_MODEL=gpt-4.1
@@ -443,6 +508,20 @@ metadata:
 data:
   CADENCE_APP_NAME: "Cadence Multi-agents AI Framework"
   CADENCE_DEBUG: "false"
+  # UI Configuration
+  CADENCE_UI_TITLE: "Cadence AI"
+  CADENCE_UI_SUBTITLE: "Intelligent conversations powered by multi-agent AI"
+  CADENCE_UI_WELCOME_TITLE: "Welcome to Cadence AI!"
+  CADENCE_UI_WELCOME_MESSAGE: "Start a conversation by typing a message below."
+  CADENCE_UI_WELCOME_HINT: "Choose your preferred response style in Settings and start chatting."
+  CADENCE_UI_FOOTER: "Powered by Cadence AI Framework"
+  # Bot Configuration
+  CADENCE_BOT_NAME: "Cadence AI"
+  CADENCE_BOT_DESCRIPTION: "Multiple Agents Chatbot System"
+  CADENCE_BOT_CREATOR: "JonasKahn"
+  CADENCE_BOT_SPECIALIZATION: "Business"
+  CADENCE_BOT_VERSION: "1.0.3"
+  # LLM Configuration
   CADENCE_DEFAULT_LLM_PROVIDER: "openai"
   # CADENCE_OPENAI_DEFAULT_MODEL: "gpt-4.1"
   CADENCE_PLUGINS_DIR: "/opt/cadence/plugins"
@@ -492,6 +571,50 @@ data:
         {
           "name": "CADENCE_DEBUG",
           "value": "false"
+        },
+        {
+          "name": "CADENCE_UI_TITLE",
+          "value": "Cadence AI"
+        },
+        {
+          "name": "CADENCE_UI_SUBTITLE",
+          "value": "Intelligent conversations powered by multi-agent AI"
+        },
+        {
+          "name": "CADENCE_UI_WELCOME_TITLE",
+          "value": "Welcome to Cadence AI!"
+        },
+        {
+          "name": "CADENCE_UI_WELCOME_MESSAGE",
+          "value": "Start a conversation by typing a message below."
+        },
+        {
+          "name": "CADENCE_UI_WELCOME_HINT",
+          "value": "Choose your preferred response style in Settings and start chatting."
+        },
+        {
+          "name": "CADENCE_UI_FOOTER",
+          "value": "Powered by Cadence AI Framework"
+        },
+        {
+          "name": "CADENCE_BOT_NAME",
+          "value": "Cadence AI"
+        },
+        {
+          "name": "CADENCE_BOT_DESCRIPTION",
+          "value": "Multiple Agents Chatbot System"
+        },
+        {
+          "name": "CADENCE_BOT_CREATOR",
+          "value": "JonasKahn"
+        },
+        {
+          "name": "CADENCE_BOT_SPECIALIZATION",
+          "value": "Business"
+        },
+        {
+          "name": "CADENCE_BOT_VERSION",
+          "value": "1.0.3"
         },
         {
           "name": "CADENCE_DEFAULT_LLM_PROVIDER",
@@ -719,6 +842,55 @@ CADENCE_PERSISTENCE_MEMORY_LAYER=redis
 CADENCE_REDIS_URL=redis://localhost:6379/1
 ```
 
+## Customizing UI and Bot Configuration
+
+### UI Customization Examples
+
+**Custom Branding:**
+
+```bash
+export CADENCE_UI_TITLE="My Company AI Assistant"
+export CADENCE_UI_SUBTITLE="Powered by advanced multi-agent technology"
+export CADENCE_UI_WELCOME_TITLE="Welcome to My Company AI!"
+export CADENCE_UI_WELCOME_MESSAGE="How can I assist you today?"
+export CADENCE_UI_WELCOME_HINT="I'm here to help with your questions and tasks."
+export CADENCE_UI_FOOTER="© 2024 My Company - AI Assistant"
+```
+
+**Multi-language Support:**
+
+```bash
+# Spanish
+export CADENCE_UI_TITLE="Asistente IA"
+export CADENCE_UI_SUBTITLE="Conversaciones inteligentes impulsadas por IA multi-agente"
+export CADENCE_UI_WELCOME_TITLE="¡Bienvenido al Asistente IA!"
+export CADENCE_UI_WELCOME_MESSAGE="Comience una conversación escribiendo un mensaje abajo."
+export CADENCE_UI_WELCOME_HINT="Elija su estilo de respuesta preferido en Configuración y comience a chatear."
+export CADENCE_UI_FOOTER="Desarrollado por Cadence AI Framework"
+```
+
+### Bot Customization Examples
+
+**Company-specific Bot:**
+
+```bash
+export CADENCE_BOT_NAME="My Company Assistant"
+export CADENCE_BOT_DESCRIPTION="Intelligent AI Assistant for My Company"
+export CADENCE_BOT_CREATOR="My Company"
+export CADENCE_BOT_SPECIALIZATION="Customer Support and Sales"
+export CADENCE_BOT_VERSION="2.1.0"
+```
+
+**Specialized Bot:**
+
+```bash
+export CADENCE_BOT_NAME="Tech Support Bot"
+export CADENCE_BOT_DESCRIPTION="Technical Support AI Assistant"
+export CADENCE_BOT_CREATOR="IT Department"
+export CADENCE_BOT_SPECIALIZATION="Technical Support"
+export CADENCE_BOT_VERSION="1.5.2"
+```
+
 ## Configuration Behavior
 
 The system automatically:
@@ -727,6 +899,7 @@ The system automatically:
 2. Selects appropriate providers/backends based on your settings
 3. Handles connection pooling and health monitoring
 4. Falls back gracefully to in-memory if databases are unavailable
+5. Applies UI and bot customizations dynamically
 
 ## Next Steps
 

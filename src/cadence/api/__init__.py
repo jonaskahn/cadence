@@ -1,6 +1,8 @@
-"""API package for Cadence framework.
+"""Cadence Framework API Package.
 
-Provides FastAPI router and service initialization for the multi-agent conversation system.
+This package provides the complete REST API interface for the Cadence multi-agent conversation framework.
+It includes FastAPI routers for chat processing, plugin management, and system monitoring,
+along with service initialization for the application layer.
 """
 
 from ..core.services.service_container import initialize_container

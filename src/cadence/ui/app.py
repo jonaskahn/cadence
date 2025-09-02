@@ -26,6 +26,22 @@ def get_default_user_config() -> Dict[str, str]:
     }
 
 
+def get_ui_config() -> Dict[str, str]:
+    """Get UI configuration from environment variables with fallback values."""
+    return {
+        "app_title": os.environ.get("CADENCE_UI_TITLE", "Cadence AI"),
+        "app_subtitle": os.environ.get("CADENCE_UI_SUBTITLE", "Intelligent conversations powered by multi-agent AI"),
+        "welcome_title": os.environ.get("CADENCE_UI_WELCOME_TITLE", "Welcome to Cadence AI!"),
+        "welcome_message": os.environ.get(
+            "CADENCE_UI_WELCOME_MESSAGE", "Start a conversation by typing a message below."
+        ),
+        "welcome_hint": os.environ.get(
+            "CADENCE_UI_WELCOME_HINT", "Choose your preferred response style in Settings and start chatting."
+        ),
+        "footer_text": os.environ.get("CADENCE_UI_FOOTER", "Powered by Cadence AI Framework"),
+    }
+
+
 def initialize_session_state():
     """Initialize Streamlit session state with default values for chat interface."""
     default_session_values = {
@@ -156,16 +172,8 @@ def render_response_tone_selector():
 
 
 def get_ai_thinking_message():
-    """Get animated AI thinking message that cycles over time."""
-    thinking_messages = [
-        "🤔 AI is thinking...",
-        "💭 Processing your request...",
-        "⚡ Generating response...",
-        "🔄 Working on it...",
-    ]
-
-    current_time_index = int(time.time()) % len(thinking_messages)
-    return thinking_messages[current_time_index]
+    """Get simple AI thinking message like standard chatbots."""
+    return "AI is thinking..."
 
 
 def display_chat_messages():
@@ -227,7 +235,7 @@ def display_chat_messages():
                         with st.expander("🔍 Raw Metadata", expanded=False):
                             st.json(chat_message["metadata"])
             else:
-                st.markdown(f"👤 **You**")
+                st.markdown(f"**You**")
                 st.markdown(chat_message["content"])
 
                 if "timestamp" in chat_message:
@@ -236,7 +244,14 @@ def display_chat_messages():
     if st.session_state.is_processing:
         with st.chat_message("assistant"):
             st.markdown(f"**AI Assistant**")
-            st.markdown(get_ai_thinking_message())
+            st.markdown(
+                '<div class="typing-indicator">'
+                '<div class="typing-dot"></div>'
+                '<div class="typing-dot"></div>'
+                '<div class="typing-dot"></div>'
+                "</div>",
+                unsafe_allow_html=True,
+            )
 
 
 def process_user_message(user_prompt: str, user_id: str, org_id: str, response_tone: str):
@@ -277,7 +292,6 @@ def main():
     """Main Streamlit application entry point."""
     st.set_page_config(page_title="Cadence AI", page_icon="🤖", layout="centered", initial_sidebar_state="expanded")
 
-    # Enhanced CSS for better chat experience
     st.markdown(
         """
     <style>
@@ -345,26 +359,44 @@ def main():
             display: none !important;
         }
         
-        /* Custom thinking indicator */
-        .thinking-indicator {
-            animation: pulse 1.5s ease-in-out infinite alternate;
+        /* Simple typing indicator like ChatGPT/Claude */
+        .typing-indicator {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 8px 0;
         }
         
-        @keyframes pulse {
-            from { opacity: 0.6; }
-            to { opacity: 1; }
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #666;
+            animation: typing-bounce 1.4s infinite ease-in-out;
+        }
+        
+        .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+        .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+        
+        @keyframes typing-bounce {
+            0%, 80%, 100% {
+                transform: scale(0.8);
+                opacity: 0.5;
+            }
+            40% {
+                transform: scale(1);
+                opacity: 1;
+            }
         }
     </style>
     """,
         unsafe_allow_html=True,
     )
 
-    # Initialize session state
     initialize_session_state()
 
-    # Sidebar for plugin management
     with st.sidebar:
-        # Chat controls at the top of sidebar
+
         st.header("💬 Chat Controls")
 
         if st.button("🆕 New Chat", use_container_width=True):
@@ -376,16 +408,14 @@ def main():
         else:
             st.info("**New Conversation**")
 
-        st.markdown("---")  # Separator
+        st.markdown("---")
 
         st.header("🔌 Plugin Management")
 
-        # Create client for sidebar operations
         api_url = get_api_base_url()
         if st.session_state.client is None:
             st.session_state.client = create_api_client(api_url)
 
-        # Plugin refresh button
         if st.button("🔄 Refresh Plugins", use_container_width=True):
             with st.spinner("Refreshing plugins..."):
                 reload_result = reload_all_plugins(st.session_state.client)
@@ -395,12 +425,10 @@ def main():
                 else:
                     st.error("Failed to reload plugins")
 
-        # Load plugins on first load
         if not st.session_state.plugins and st.session_state.client:
             with st.spinner("Loading plugins..."):
                 st.session_state.plugins = load_available_plugins(st.session_state.client)
 
-        # Display plugins
         if st.session_state.plugins:
             st.subheader("Available Plugins")
             for plugin in st.session_state.plugins:
@@ -414,7 +442,6 @@ def main():
         else:
             st.info("No plugins available")
 
-        # System status section
         st.header("📊 System Status")
         if st.button("🔄 Refresh Status", use_container_width=True):
             with st.spinner("Loading status..."):
@@ -434,20 +461,18 @@ def main():
             with col2:
                 st.metric("Failed", len(st.session_state.system_status.failed_plugins))
 
-    # Header
-    st.markdown('<div class="main-header">', unsafe_allow_html=True)
-    st.title("🫆 Cadence AI")
-    st.markdown("*Intelligent conversations powered by multi-agent AI*")
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    # Get user config for API calls
+    ui_config = get_ui_config()
     user_config = get_default_user_config()
     user_id = user_config["user_id"]
     org_id = user_config["org_id"]
 
-    # Settings in expander
+    st.markdown('<div class="main-header">', unsafe_allow_html=True)
+    st.title(f"🫆 {ui_config['app_title']}")
+    st.markdown(f"*{ui_config['app_subtitle']}*")
+    st.markdown("</div>", unsafe_allow_html=True)
+
     with st.expander("⚙️ Settings"):
-        # First row: Status and Session
+
         col1, col2 = st.columns(2)
         with col1:
             st.markdown(f"**Status:** {get_connection_status_display()}")
@@ -458,60 +483,36 @@ def main():
                 else "**Session:** New"
             )
 
-        # Second row: Style
         selected_tone = render_response_tone_selector()
 
-    # Display all messages (including thinking indicator)
     display_chat_messages()
 
-    # Handle AI response generation if we're processing
     if st.session_state.is_processing and len(st.session_state.messages) > 0:
-        # Get the last user message
+
         last_message = st.session_state.messages[-1]
         if last_message["role"] == "user":
             get_ai_response(last_message["content"], user_id, org_id, selected_tone)
-            st.rerun()  # Rerun to show the AI response
+            st.rerun()
 
-    # Chat input
     if prompt := st.chat_input("💭 Ask me anything...", key="main_chat_input", disabled=st.session_state.is_processing):
         process_user_message(prompt, user_id, org_id, selected_tone)
 
-    # Show welcome message if no messages
     if not st.session_state.messages:
-        # Enhanced welcome message with interactive elements
+
         st.markdown(
-            """
+            f"""
         <div style="text-align: center; padding: 3rem 0; color: #666;">
-            <h3>👋 Welcome to Cadence AI!</h3>
-            <p>Start a conversation by typing a message below.</p>
-            <p><em>Choose your preferred response style in Settings and start chatting.</em></p>
+            <h3>👋 {ui_config['welcome_title']}</h3>
+            <p>{ui_config['welcome_message']}</p>
+            <p><em>{ui_config['welcome_hint']}</em></p>
         </div>
         """,
             unsafe_allow_html=True,
         )
 
-        # Quick start suggestions
-        st.markdown("### 💡 **Quick Start Suggestions**")
-        col1, col2 = st.columns(2)
-
-        with col1:
-            if st.button("🤖 Ask about capabilities", use_container_width=True):
-                process_user_message("What can you help me with?", user_id, org_id, selected_tone)
-
-            if st.button("🔍 Search for information", use_container_width=True):
-                process_user_message("Can you help me search for information?", user_id, org_id, selected_tone)
-
-        with col2:
-            if st.button("📚 Explain a concept", use_container_width=True):
-                process_user_message("Can you explain how AI works in simple terms?", user_id, org_id, selected_tone)
-
-            if st.button("🧮 Math help", use_container_width=True):
-                process_user_message("Can you help me with a math problem?", user_id, org_id, selected_tone)
-
-    # Footer
     st.markdown("---")
     st.markdown(
-        '<div style="text-align: center; color: #888; padding: 1rem;">Powered by Cadence AI Framework</div>',
+        f'<div style="text-align: center; color: #888; padding: 1rem;">{ui_config["footer_text"]}</div>',
         unsafe_allow_html=True,
     )
 

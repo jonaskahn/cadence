@@ -1,78 +1,8 @@
-"""Cadence Framework Database Connection Management - Multi-Backend Connection Orchestration.
+"""Database Connection Management for Cadence Framework.
 
 This module provides comprehensive database connection management for the Cadence multi-agent
 AI framework, supporting multiple database backends with connection pooling, health monitoring,
 and automatic failover capabilities.
-
-Architecture Overview:
-    The connection manager implements a multi-backend strategy that allows Cadence to:
-    - Use PostgreSQL for ACID-compliant relational data
-    - Leverage Redis for high-performance session storage and caching
-
-    - Maintain consistent connection patterns across all backends
-
-Connection Management Features:
-    - Async/await patterns for non-blocking database operations
-    - Connection pooling with configurable pool sizes and timeouts
-    - Automatic connection health monitoring with ping/retry logic
-    - Graceful degradation when optional backends are unavailable
-    - Comprehensive logging for debugging and monitoring
-
-Supported Database Backends:
-    PostgreSQL (Primary Backend):
-        - ACID-compliant relational database for critical data
-        - Async SQLAlchemy with connection pooling
-        - Optimized for complex queries and transactions
-        - Automatic schema management and migrations
-
-    Redis (Caching and Sessions):
-        - High-performance in-memory data structure store
-        - Session storage with configurable TTL
-        - Application-level caching for frequently accessed data
-        - Pub/sub capabilities for real-time features
-
-
-
-Example Usage:
-    Initializing database connections:
-
-    ```python
-    from cadence.infrastructure.database.connection import (
-        DatabaseConnectionManager, initialize_databases
-    )
-    from cadence.config import Settings
-
-    settings = Settings()
-    settings.postgres_url = "postgresql+asyncpg://user:pass@localhost/cadence"
-    settings.redis_url = "redis://localhost:6379/0"
-
-    connection_manager = await initialize_databases(settings)
-
-    async with connection_manager.get_postgres_session() as session:
-        result = await session.execute("SELECT COUNT(*) FROM threads")
-        count = result.scalar()
-
-    await connection_manager.redis_client.set("key", "value", ex=3600)
-    ```
-
-    Connection health monitoring:
-
-    ```python
-    pg_healthy = await connection_manager.check_postgres_health()
-    redis_healthy = await connection_manager.check_redis_health()
-
-    stats = connection_manager.get_connection_stats()
-    ```
-
-Performance Optimizations:
-    - Connection pooling prevents connection exhaustion under load
-    - Pool pre-ping ensures connections are valid before use
-    - Configurable pool recycling prevents stale connections
-    - Async patterns allow thousands of concurrent operations
-    - Intelligent retry logic handles transient network issues
-
-The connection manager ensures reliable, high-performance database access across
-all supported backends while providing clean abstractions for the repository layer.
 """
 
 import logging
@@ -94,32 +24,6 @@ class DatabaseConnectionManager:
     This class orchestrates connections to multiple database backends, providing
     a unified interface for connection management, health monitoring, and performance
     optimization across PostgreSQL and Redis backends.
-
-    The connection manager implements best practices for async database operations:
-    - Connection pooling with configurable parameters
-    - Health monitoring with automatic retry logic
-    - Graceful degradation when backends are unavailable
-    - Comprehensive logging for operations and diagnostics
-
-    Backend Support:
-        PostgreSQL: Primary relational database with SQLAlchemy async support
-        Redis: High-performance session storage and caching
-
-
-    Example:
-        ```python
-        settings = Settings()
-        manager = DatabaseConnectionManager(settings)
-
-        await manager.initialize_postgresql()
-        await manager.initialize_redis()
-
-        async with manager.get_postgres_session() as session:
-            pass
-
-        if await manager.check_postgres_health():
-            logger.info("PostgreSQL connection healthy")
-        ```
     """
 
     def __init__(self, settings: Settings):

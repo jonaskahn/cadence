@@ -1,7 +1,8 @@
-"""Application services for Cadence framework.
+"""Application Services for Cadence Framework.
 
-Provides high-level business logic coordination between domain models and infrastructure services,
-implementing conversation lifecycle management and multi-agent orchestration.
+This module provides high-level business logic coordination between domain models and
+infrastructure services. It implements conversation lifecycle management, multi-agent
+orchestration, and service container management for the Cadence framework.
 """
 
 from .conversation_service import ConversationService

@@ -1,5 +1,6 @@
-"""Multi-agent orchestration system for Cadence framework.
+"""Multi-Agent Orchestration System for Cadence Framework.
 
-Provides LangGraph-based conversation coordination with dynamic plugin integration
-and intelligent agent routing.
+This module provides the core orchestration capabilities for coordinating multiple AI agents
+in conversation workflows. It implements LangGraph-based conversation coordination with
+dynamic plugin integration and intelligent agent routing for complex multi-step conversations.
 """

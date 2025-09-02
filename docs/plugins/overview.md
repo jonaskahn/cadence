@@ -180,7 +180,7 @@ PluginMetadata(
         "max_tokens": 1024
     },
     agent_type="specialized",
-                dependencies=["cadence_sdk>=1.0.2,<2.0.0"],
+    dependencies=["cadence_sdk>=1.0.2,<2.0.0"],
 )
 ```
 
@@ -245,15 +245,18 @@ class MathAgent(BaseAgent):
 ```python
 from cadence_sdk import tool
 
+
 @tool
 def add(a: int, b: int) -> int:
     """Add two numbers together."""
     return a + b
 
+
 @tool
 def multiply(a: int, b: int) -> int:
     """Multiply two numbers together."""
     return a * b
+
 
 math_tools = [add, multiply]
 ```

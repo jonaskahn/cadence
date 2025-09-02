@@ -80,7 +80,6 @@ class ModelCacheManager(Loggable):
             ```python
             config = ModelConfig(provider="openai", model_name="gpt-4", temperature=0.7)
             key = ModelCacheManager.get_cache_key(config)
-            # Returns: "openai:gpt-4:0.7"
             ```
         """
         return f"{config.provider}:{config.model_name}:{config.temperature}"
@@ -251,7 +250,7 @@ class LLMModelFactory(Loggable):
 
         return ModelConfig(
             provider=self.settings.default_llm_provider,
-            model_name=self.settings.get_default_provider_llm_model(self.settings.default_llm_provider),
+            model_name=self.settings.get_default_provider_llm_model(),
             api_key=self.settings.get_api_key_for_provider(self.settings.default_llm_provider),
             additional_params=self.settings.get_provider_extra_params(self.settings.default_llm_provider),
         )

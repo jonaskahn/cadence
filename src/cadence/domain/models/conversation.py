@@ -6,6 +6,7 @@ import uuid
 from datetime import datetime
 from typing import Any, Dict, Optional
 
+from langchain_core.messages import AIMessage, HumanMessage
 from pydantic import BaseModel, Field
 
 
@@ -53,8 +54,6 @@ class Conversation(BaseModel):
 
     def to_langgraph_messages(self) -> list:
         """Convert to LangGraph message sequence."""
-        from langchain_core.messages import AIMessage, HumanMessage
-
         return [HumanMessage(content=self.user_message), AIMessage(content=self.assistant_message)]
 
     def to_dict(self) -> dict:

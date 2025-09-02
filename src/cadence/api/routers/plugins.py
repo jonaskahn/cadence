@@ -1,6 +1,8 @@
-"""Plugin management endpoints.
+"""Plugin Management API Endpoints.
 
-Provides plugin discovery, details retrieval, and reload functionality.
+This router provides comprehensive plugin discovery, monitoring, and management functionality.
+It allows administrators to view plugin status, retrieve detailed information about available plugins,
+and reload the entire plugin system when updates are deployed.
 """
 
 from __future__ import annotations
@@ -17,13 +19,17 @@ plugins_api_router = APIRouter()
 
 
 def get_plugin_manager() -> SDKPluginManager:
-    """Retrieve plugin manager from global service container."""
+    """Dependency injection function to retrieve the plugin manager from the global service container."""
     return global_service_container.get_plugin_manager()
 
 
 @plugins_api_router.get("/plugins", response_model=List[PluginInfo])
 async def list_available_plugins(plugin_manager: SDKPluginManager = Depends(get_plugin_manager)) -> List[PluginInfo]:
-    """Retrieve all discovered plugins with metadata and health status."""
+    """Retrieve comprehensive information about all discovered plugins in the system.
+
+    Returns a list of all plugins with their metadata, capabilities, and current health status
+    for system monitoring and administration purposes.
+    """
     discovered_plugins: List[PluginInfo] = []
 
     for plugin_identifier in plugin_manager.get_available_plugins():
@@ -49,7 +55,11 @@ async def list_available_plugins(plugin_manager: SDKPluginManager = Depends(get_
 async def get_plugin_details(
     plugin_name: str, plugin_manager: SDKPluginManager = Depends(get_plugin_manager)
 ) -> PluginInfo:
-    """Retrieve detailed metadata and status for specified plugin."""
+    """Retrieve detailed metadata and operational status for a specific plugin.
+
+    Provides comprehensive information about a single plugin including its capabilities,
+    version details, and current health status for troubleshooting and monitoring.
+    """
     plugin_bundle = plugin_manager.get_plugin_bundle(plugin_name)
     if not plugin_bundle:
         raise HTTPException(status_code=404, detail=f"Plugin '{plugin_name}' not found in available plugins")
@@ -68,7 +78,12 @@ async def get_plugin_details(
 
 @plugins_api_router.post("/plugins/reload")
 async def reload_all_plugins(plugin_manager: SDKPluginManager = Depends(get_plugin_manager)) -> dict:
-    """Reload all plugins and rebuild orchestrator graph."""
+    """Reload the entire plugin system and rebuild the orchestrator graph.
+
+    This endpoint triggers a complete plugin reload, which is useful after deploying
+    new plugin versions or when troubleshooting plugin-related issues. The orchestrator
+    graph is automatically rebuilt to incorporate any changes.
+    """
     try:
         plugin_manager.reload_plugins()
         try:

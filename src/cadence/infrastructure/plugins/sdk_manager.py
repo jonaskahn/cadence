@@ -113,10 +113,6 @@ class SDKPluginBundle(Loggable):
         Example:
             ```python
             nodes = bundle.get_graph_nodes()
-            # Returns: {
-            #   "math_agent_agent": <agent_node_callable>,
-            #   "math_agent_tools": <tool_node_callable>
-            # }
             ```
         """
         normalized_agent_name = str.lower(self.metadata.name).replace(" ", "_")
@@ -138,21 +134,7 @@ class SDKPluginBundle(Loggable):
         Example:
             ```python
             edges = bundle.get_graph_edges()
-            # Returns: {
-            #   "conditional_edges": {
-            #     "math_agent_agent": {
-            #       "condition": <routing_function>,
-            #       "mapping": {"continue": "math_agent_tools", "back": "coordinator"}
-            #     }
-            #   },
-            #   "direct_edges": [("math_agent_tools", "coordinator")]
-            # }
             ```
-
-            Routing Flow:
-            1. Agent decides: "continue" → routes to tools
-            2. Agent decides: "back" → routes directly to coordinator
-            3. Tools always route to coordinator (prevents circular routing)
         """
         normalized_agent_name = str.lower(self.metadata.name).replace(" ", "_")
         return {
@@ -201,9 +183,9 @@ class SDKPluginManager(Loggable):
         plugins/
         ├── plugin_name/
         │   ├── __init__.py
-        │   ├── plugin.py      # Plugin contract implementation
-        │   ├── agent.py       # Agent implementation
-        │   └── tools.py       # Tool implementations
+        │   ├── plugin.py
+        │   ├── agent.py
+        │   └── tools.py
         ```
 
     Example:
@@ -502,26 +484,20 @@ class SDKPluginManager(Loggable):
         """Reload all plugins by clearing and rediscovering."""
         self.logger.info("Reloading all plugins...")
 
-        # Reset discovery state
         try:
-            # Reset environment discovery manager
             from cadence_sdk import get_plugin_registry
             from cadence_sdk.utils import reset_environment_discovery
 
             reset_environment_discovery()
 
-            # Reset directory discovery attached to this manager
             if hasattr(self, "_dir_discovery") and self._dir_discovery:
                 self._dir_discovery.reset()
 
-            # Clear global plugin registry to avoid duplicates/stale entries
             registry = get_plugin_registry()
             if registry:
                 registry.clear_all()
         except Exception as e:
             self.logger.warning(f"Failed to reset discovery or registry state: {e}")
-
-        # Clear manager state and reload
         self._clear_plugin_state()
         self.discover_and_load_plugins()
         self.perform_health_checks()

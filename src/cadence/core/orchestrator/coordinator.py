@@ -163,7 +163,6 @@ class MultiAgentOrchestrator(Loggable):
 
         control_tools = self.plugin_manager.get_coordinator_tools()
 
-        # Use coordinator-specific provider if configured, otherwise fallback to default
         provider = self.settings.coordinator_llm_provider or self.settings.default_llm_provider
         model_name = self.settings.get_default_provider_llm_model(provider)
         temperature = self.settings.coordinator_temperature
@@ -183,7 +182,6 @@ class MultiAgentOrchestrator(Loggable):
         """Create LLM model for suspend node with fallback to default."""
         from ...infrastructure.llm.providers import ModelConfig
 
-        # Use suspend-specific provider if configured, otherwise fallback to default
         provider = self.settings.suspend_llm_provider or self.settings.default_llm_provider
         model_name = self.settings.get_default_provider_llm_model(provider)
         temperature = self.settings.suspend_temperature
@@ -202,7 +200,6 @@ class MultiAgentOrchestrator(Loggable):
         """Create LLM model for synthesizing final responses."""
         from ...infrastructure.llm.providers import ModelConfig
 
-        # Use finalizer-specific provider if configured, otherwise fallback to default
         provider = self.settings.finalizer_llm_provider or self.settings.default_llm_provider
         model_name = self.settings.get_finalizer_provider_llm_model(provider)
         temperature = self.settings.finalizer_temperature
@@ -310,7 +307,6 @@ class MultiAgentOrchestrator(Loggable):
                 self.logger.debug(f"Adding conditional edge: {node_name} -> {edge_config['mapping']}")
                 graph.add_conditional_edges(node_name, edge_config["condition"], edge_config["mapping"])
 
-            # Add direct edges for tool execution flow
             for from_node, to_node in edges["direct_edges"]:
                 self.logger.debug(f"Adding direct edge: {from_node} -> {to_node}")
                 graph.add_edge(from_node, to_node)

@@ -1,6 +1,8 @@
-"""API service initialization utilities.
+"""API Service Layer Initialization.
 
-Provides service container initialization for the Cadence framework API layer.
+This module provides the service container initialization functionality for the Cadence framework API.
+It handles the setup of infrastructure components, LLM providers, plugin management,
+and application services required for the API to function properly.
 """
 
 from __future__ import annotations
@@ -10,9 +12,11 @@ from ..core.services.service_container import global_service_container, initiali
 
 
 async def initialize_api(application_settings: Settings) -> None:
-    """Initialize the global service container with application settings.
+    """Initialize the global service container with application configuration.
 
-    Sets up infrastructure, LLM providers, plugin manager, and application services.
+    Sets up the complete service infrastructure including database connections,
+    LLM provider configurations, plugin manager initialization, and application services.
+    This function must be called before the API can process any requests.
     """
     await initialize_container(application_settings)
 

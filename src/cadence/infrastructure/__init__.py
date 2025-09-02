@@ -1,6 +1,6 @@
-"""Infrastructure layer for Cadence framework.
+"""Infrastructure Layer for Cadence Framework.
 
-Provides external service integrations, data persistence, and plugin management
+This package provides external service integrations, data persistence, and plugin management
 for the multi-agent AI system with multi-backend support.
 """
 

@@ -35,8 +35,6 @@ class ConversationModel(Base, TimestampMixin):
         Index("idx_conversation_thread_created", "thread_id", "created_at"),
         Index("idx_conversation_created", "created_at"),
         Index("idx_conversation_tokens", "user_tokens", "assistant_tokens"),
-        # Full-text search indexes for content search (PostgreSQL specific)
-        # These will be created conditionally based on database type
     )
 
     thread = relationship("ThreadModel", back_populates="conversations")

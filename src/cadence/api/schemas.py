@@ -1,6 +1,8 @@
-"""API request and response schemas.
+"""API Data Models and Validation Schemas.
 
-Defines Pydantic models for request validation, response serialization, and OpenAPI documentation.
+This module defines all Pydantic models used for API request validation, response serialization,
+and OpenAPI documentation generation. Each schema represents a specific data contract
+for the Cadence multi-agent conversation system.
 """
 
 from __future__ import annotations
@@ -11,7 +13,11 @@ from pydantic import BaseModel, Field
 
 
 class ChatRequest(BaseModel):
-    """User message request for multi-agent processing."""
+    """Request model for initiating or continuing a conversation with the multi-agent system.
+
+    Contains the user's message, optional conversation threading, metadata for context,
+    and response tone preferences for personalized interactions.
+    """
 
     message: str = Field(
         ..., description="User message to be processed by the multi-agent system", min_length=1, max_length=10000
@@ -30,7 +36,11 @@ class ChatRequest(BaseModel):
 
 
 class ChatResponse(BaseModel):
-    """Agent response with session information."""
+    """Response model containing the agent's reply and conversation session information.
+
+    Provides the processed response from the multi-agent system along with
+    session tracking details for maintaining conversation context.
+    """
 
     response: str = Field(..., description="Agent's response to the user message")
     thread_id: str = Field(..., description="Session identifier for conversation threading")
@@ -40,7 +50,11 @@ class ChatResponse(BaseModel):
 
 
 class PluginInfo(BaseModel):
-    """Plugin metadata and health status."""
+    """Plugin metadata and operational status information.
+
+    Represents a discovered plugin with its capabilities, version information,
+    and current health status for system monitoring and management.
+    """
 
     name: str = Field(..., description="Plugin identifier name")
     version: str = Field(..., description="Plugin version in semantic versioning format")
@@ -50,7 +64,11 @@ class PluginInfo(BaseModel):
 
 
 class SystemStatus(BaseModel):
-    """System health status and plugin information."""
+    """Comprehensive system health and operational status.
+
+    Provides an overview of the entire Cadence system including plugin health,
+    available services, and system metrics for monitoring and diagnostics.
+    """
 
     status: str = Field(
         ..., description="Overall system health status", pattern="^(operational|healthydegraded|failed)$"

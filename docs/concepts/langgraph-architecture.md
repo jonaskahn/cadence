@@ -133,7 +133,8 @@ def _add_dynamic_plugin_nodes(self, graph: StateGraph) -> None:
 
 ### Phase 4: Routing Edge Establishment
 
-The routing network creates the decision tree that guides conversation flow. **This is where the new conditional routing system is implemented:**
+The routing network creates the decision tree that guides conversation flow. **This is where the new conditional routing
+system is implemented:**
 
 ```mermaid
 graph TB
@@ -563,7 +564,9 @@ sequenceDiagram
 
 ## Conclusion
 
-The new conditional routing system in Cadence provides a robust, predictable foundation for multi-agent conversations. By implementing fake tool calls and proper edge routing, we've eliminated circular routing issues while maintaining the flexibility and power of the multi-agent architecture.
+The new conditional routing system in Cadence provides a robust, predictable foundation for multi-agent conversations.
+By implementing fake tool calls and proper edge routing, we've eliminated circular routing issues while maintaining the
+flexibility and power of the multi-agent architecture.
 
 The system now ensures that:
 
@@ -572,4 +575,5 @@ The system now ensures that:
 - State management is predictable and debuggable
 - The conversation flow is clear and maintainable
 
-This implementation makes Cadence more reliable and easier to debug while preserving all the advanced features of the multi-agent orchestration system.
+This implementation makes Cadence more reliable and easier to debug while preserving all the advanced features of the
+multi-agent orchestration system.

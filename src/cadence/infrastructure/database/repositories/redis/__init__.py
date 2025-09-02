@@ -18,7 +18,7 @@ Usage:
         RedisConversationRepository
     )
 
-    # Initialize with Redis connection
+
     redis_client = await get_redis_client()
     thread_repo = RedisThreadRepository(redis_client)
     conversation_repo = RedisConversationRepository(redis_client)

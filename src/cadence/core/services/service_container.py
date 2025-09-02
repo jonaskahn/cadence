@@ -287,18 +287,15 @@ class ServiceContainer(Loggable):
         try:
             self.logger.info("Cleaning up service container...")
 
-            # Clean up repositories if they have cleanup methods
             if hasattr(self.thread_repository, "cleanup"):
                 await self.thread_repository.cleanup()
 
             if hasattr(self.conversation_repository, "cleanup"):
                 await self.conversation_repository.cleanup()
 
-            # Clean up plugin manager if it has cleanup method
             if hasattr(self.plugin_manager, "cleanup"):
                 await self.plugin_manager.cleanup()
 
-            # Clean up orchestrator if it has cleanup method
             if hasattr(self.orchestrator, "cleanup"):
                 await self.orchestrator.cleanup()
 
@@ -306,7 +303,6 @@ class ServiceContainer(Loggable):
 
         except Exception as e:
             self.logger.error(f"Error during service container cleanup: {e}")
-            # Don't raise the error during cleanup to avoid masking other cleanup issues
 
 
 global_service_container = ServiceContainer()
