@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     plugins_dir: List[str] = Field(
         default=["./plugins/src/cadence_example_plugins"], description="Directories to search for plugins"
     )
+    storage_root: str = Field(default="./storage", description="Root directory for plugin storage")
     enable_directory_plugins: bool = Field(default=True, description="Enable directory-based plugin discovery")
 
     postgres_url: Optional[str] = Field(
@@ -51,6 +52,10 @@ class Settings(BaseSettings):
     conversation_storage_backend: str = Field(default="memory", description="Conversation storage backend")
     max_agent_hops: int = Field(default=25, description="Maximum agent hops per conversation")
     graph_recursion_limit: int = Field(default=50, description="Maximum graph recursion depth")
+    coordinator_consecutive_agent_route_limit: int = Field(
+        default=5,
+        description="Max consecutive coordinator routes to agents (excluding finalize) before suspend",
+    )
 
     session_timeout: int = Field(default=3600, description="Session timeout in seconds")
     max_session_history: int = Field(default=100, description="Maximum conversation history per session")
@@ -237,6 +242,23 @@ class Settings(BaseSettings):
     def finalizer_max_tokens(self) -> int:
         """Get the max tokens for the finalizer LLM."""
         return 1024
+
+    # Derived storage directories (computed from storage_root)
+    @property
+    def storage_uploaded(self) -> str:
+        return str((__import__("pathlib").Path(self.storage_root) / "uploaded").resolve())
+
+    @property
+    def storage_archived(self) -> str:
+        return str((__import__("pathlib").Path(self.storage_root) / "archived").resolve())
+
+    @property
+    def storage_staging(self) -> str:
+        return str((__import__("pathlib").Path(self.storage_root) / "staging").resolve())
+
+    @property
+    def storage_backup(self) -> str:
+        return str((__import__("pathlib").Path(self.storage_root) / "backup").resolve())
 
 
 settings = Settings()

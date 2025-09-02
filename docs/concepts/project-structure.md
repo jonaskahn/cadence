@@ -4,7 +4,7 @@ This repository contains three main components:
 
 - `src/cadence`: Cadence core (API, orchestrator, LLM factory, plugin manager)
 - `sdk/src/cadence_sdk`: Cadence SDK for building plugins (interfaces, registry, utilities)
-- `plugins/src/cadence_plugins`: Example plugins (math, search)
+- `plugins/src/cadence_example_plugins`: Example plugins (math, search)
 
 ```
 cadence/
@@ -38,7 +38,7 @@ cadence/
 │  ├─ utils/               # Plugin discovery, validation, hybrid loading
 │  └─ examples/            # Template plugin implementation
 │
-├─ plugins/src/cadence_plugins/ # Example plugin ecosystem
+├─ plugins/src/cadence_example_plugins/ # Example plugin ecosystem
 │  ├─ math_agent/          # Mathematical calculations plugin
 │  ├─ search_agent/        # Web search capabilities plugin
 │  └─ myinfo_agent/        # Chatbot information plugin
@@ -61,13 +61,13 @@ cadence/
 
 - Run server: `python -m cadence`
 - Run debug UI: `streamlit run src/cadence/ui/app.py`
-- SDK imports: `from cadence_sdk import BasePlugin, PluginMetadata, BasePluginAgent, tool`
-- Plugins dir: configured via `CADENCE_PLUGINS_DIR` (default `./plugins/src/cadence_plugins`)
+- SDK imports: `from cadence_sdk import BasePlugin, PluginMetadata, BaseAgent, tool`
+- Plugins dir: configured via `CADENCE_PLUGINS_DIR` (default `./plugins/src/cadence_example_plugins`)
 
 ## How things connect
 
 - Core loads plugins via `SDKPluginManager`, which discovers packages and registers them through the SDK registry.
-- Each plugin implements `BasePlugin`, creates an `agent` (subclass of `BasePluginAgent`), and exposes tools.
+- Each plugin implements `BasePlugin`, creates an `agent` (subclass of `BaseAgent`), and exposes tools.
 - Orchestrator builds a graph with agent nodes and tool nodes for runtime execution.
 - UI connects to core via REST API endpoints for chat, thread management, and plugin status.
 
@@ -83,8 +83,8 @@ cadence/
 ## Development workflow
 
 1. **Core Development**: Modify `src/cadence/` for framework features
-2. **Plugin Development**: Create new agents in `plugins/src/cadence_plugins/`
-3. **SDK Updates**: Enhance plugin interfaces in `sdk/src/cadence_sdk/`
+2. **Plugin Development**: Create new agents in `plugins/src/cadence_example_plugins/`
+3. **SDK Updates**: Update plugin interfaces in `sdk/src/cadence_sdk/`
 4. **Testing**: Run tests with `poetry run pytest`
 5. **Documentation**: Update docs in `docs/` directory
 6. **UI Testing**: Use Streamlit debug interface for rapid iteration

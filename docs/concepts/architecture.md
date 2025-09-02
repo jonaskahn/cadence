@@ -18,7 +18,7 @@ flowchart TD
     end
 
     subgraph Core["Core System"]
-        Coord["Enhanced Coordinator (LangGraph)"]
+        Coord["Coordinator (LangGraph)"]
         SDKPM[SDK Plugin Manager]
         State[State Manager]
         LLMF[LLM Factory]
@@ -79,6 +79,12 @@ flowchart TD
     Coord --> Safety
     Safety --> State
 
+    %% Guardrails
+    Coord -->|consecutive same-agent limit| Suspend
+    subgraph Limits
+        Suspend["Suspend Node (guardrails)"]
+    end
+
     API --> Obs
     Coord --> Obs
 ```
@@ -95,53 +101,89 @@ The entry point for all external communication:
 - **CORS**: Cross-origin resource sharing configuration
 - **Validation**: Request/response validation with Pydantic
 
-### 2. **Enhanced Multi-Agent Orchestrator**
+### 2. **Multi-Agent Orchestrator**
 
 The brain of the system that coordinates agent interactions:
 
-- **Workflow Management**: LangGraph-based workflow orchestration with enhanced safety mechanisms
-- **Agent Routing**: Intelligent routing to appropriate agents with hop limit handling and message filtering
-- **State Management**: Persistent conversation and workflow state with standardized updates
-- **Safety Features**: Tool execution logging, message filtering, and error handling
+- **Workflow Management**: LangGraph-based workflow orchestration with conditional routing
+- **Agent Routing**: Intelligent routing with consecutive agent limit protection and hop counting
+- **State Management**: Conversation state tracking with plugin context
+- **Safety Features**: Tool execution logging, message filtering, and circular routing prevention
 - **Dynamic Configuration**: Separate model configurations for coordinator, suspend, and finalizer roles
-- **Error Handling**: Graceful failure recovery and fallbacks
-- **Performance Optimization**: Caching and resource management
-- **Suspend Node**: Intelligent handling of hop limits with AI communication
+- **Error Handling**: Graceful failure recovery with suspend node handling
+- **Performance Optimization**: Model caching and resource management through service container
+- **Suspend Node**: User-friendly hop limit handling with tone-aware messaging
 - **Tone Control**: Dynamic response style adaptation (natural, explanatory, formal, concise, learning)
+- **Routing Logic**: Simple decision logic based on tool call presence
 
 ### 3. **Plugin Manager**
 
-Handles the complete plugin lifecycle:
+Handles the complete plugin lifecycle with management capabilities:
 
-- **Discovery**: Automatic plugin detection and loading
-- **Validation**: Plugin structure and dependency verification
-- **Lifecycle Management**: Loading, unloading, and hot-reloading
-- **Resource Management**: Memory and connection pooling
-- **Health Monitoring**: Plugin status and performance metrics
+- **Multi-source Discovery**: Pip packages, directory scanning, and uploaded plugins
+- **Validation**: Structure, dependency, and health validation
+- **Lifecycle Management**: Loading, unloading, hot-reloading, and bundle creation
+- **Resource Management**: LLM model binding, tool integration, and memory management
+- **Health Monitoring**: Plugin status monitoring and failure isolation
+- **Upload Management**: Dynamic plugin upload, extraction, and integration
+- **Dependency Resolution**: Automatic installation of plugin dependencies
 
 ### 4. **LLM Factory**
 
-Manages connections to various language models:
+Manages connections to various language models with caching and provider management:
 
-- **Provider Abstraction**: Unified interface for different LLM providers
-- **Model Caching**: Intelligent caching of model instances
-- **Configuration Management**: Provider-specific settings and parameters
-- **Fallback Handling**: Automatic failover between providers
-- **Cost Optimization**: Token usage tracking and optimization
+- **Multi-Provider Support**: OpenAI, Anthropic, Google AI, Azure OpenAI
+- **Model Caching**: Cache manager with key-based model instance reuse
+- **Provider Registry**: Centralized provider registration and management
+- **Configuration Management**: Provider-specific settings and credential resolution
+- **Fallback Handling**: Automatic provider fallback and error recovery
+- **Cost Optimization**: Token usage tracking and model optimization
+- **Cache Statistics**: Performance monitoring and cache hit rate tracking
+
+### 5. **Service Container**
+
+Provides dependency injection and service lifecycle management:
+
+- **Layered Architecture**: Infrastructure, application, and domain service layers
+- **Dependency Injection**: Centralized service creation and dependency resolution
+- **Database Factory**: Multi-backend repository creation (PostgreSQL, Redis, Memory)
+- **Service Lifecycle**: Initialization, health monitoring, and cleanup management
+- **Repository Abstraction**: Backend-agnostic data access patterns
+- **Health Monitoring**: System health checks and diagnostics
+- **Resource Management**: Connection pooling and resource optimization
+
+### 6. **Database Factory**
+
+Implements factory pattern for multi-backend data storage:
+
+- **Backend Abstraction**: Unified interface for different storage backends
+- **Repository Creation**: Dynamic repository instantiation based on configuration
+- **Connection Management**: Database connection lifecycle and pooling
+- **Health Monitoring**: Backend-specific health checks and status reporting
+- **Migration Support**: Database schema management and versioning
+- **Fallback Strategy**: Automatic fallback to in-memory storage on failure
 
 ## Data Flow
 
 ### Plugin Discovery Sources
 
-Cadence aggregates plugins from two sources at startup:
+Cadence aggregates plugins from multiple sources at startup:
 
-- Pip-installed packages (environment packages)
+- **Pip-installed packages** (environment packages)
+
     - Discovered via the SDK registry when packages that depend on `cadence_sdk` are present
     - Import of the package triggers `register_plugin(...)`
     - No extra configuration needed beyond having the package installed
 
-- Directory-based packages (filesystem)
+- **Directory-based packages** (filesystem)
+
     - Controlled via environment variable `CADENCE_PLUGINS_DIR`
+    - Supports single directory or JSON list of directories
+
+- **Uploaded plugins** (dynamic upload)
+    - Plugins uploaded via UI or API to the store directory
+    - Managed through the plugin upload system
+    - Automatic extraction, validation, and integration
 
 ```bash
 # Single directory
@@ -191,12 +233,12 @@ sequenceDiagram
 sequenceDiagram
     participant C as Client
     participant API as API Gateway
-    participant Coord as Enhanced Orchestrator (LangGraph)
+    participant Coord as Orchestrator (LangGraph)
     participant B as Plugin Bundle
     participant Agent as AgentNode
     participant Tools as ToolNode
     participant LLM as LLM (bound)
-    participant F as Enhanced Finalizer
+    participant F as Finalizer
     participant Safety as Safety & Logging
 
     C->>API: HTTP Request (with tone)
@@ -281,9 +323,9 @@ Key responsibilities:
 - Agent.create_agent_node(): returns the callable used as the LangGraph node
 - Agent.should_continue(state): returns "continue" to call tools or "back" to return to the coordinator
 
-#### Enhanced Agent Decision Making
+#### Agent Decision Making
 
-The enhanced system implements intelligent agent decision-making through a standardized decision method:
+The system implements agent decision-making through a standardized decision method:
 
 **Decision Logic Design:**
 
@@ -291,18 +333,10 @@ The enhanced system implements intelligent agent decision-making through a stand
 - If the agent's response has NO tool calls → returns control to coordinator
 - This ensures consistent routing behavior across all agents
 
-#### Fake Tool Call Implementation
-
-To ensure consistent routing flow, agents create fake tool calls when they answer directly.
-
-**Design Principles:**
-
 - **Consistent Flow**: All agent responses follow the same routing path
 - **Explicit Intent**: Fake tool calls make routing decisions explicit
 - **No Direct Routing**: Agents never route directly to coordinator
 - **Tool Node Integration**: All responses go through the tools node for proper state management
-
-#### Enhanced Plugin Bundle Edge Configuration
 
 The plugin bundles define their own routing logic through a standardized interface.
 
@@ -315,10 +349,10 @@ The plugin bundles define their own routing logic through a standardized interfa
 
 #### Enhanced Suspend Node for Hop Limit Handling
 
-The suspend node provides intelligent handling of hop limits with enhanced context awareness:
+The suspend node provides intelligent handling of hop limits with context awareness:
 
-- **Enhanced Hop Detection**: Improved hop limit detection with better state tracking
-- **Smart Hop Counting**: Only actual agent calls increment the hop counter, not finalization calls
+- **Hop Detection**: Hop limit detection with state tracking
+- **Smart Hop Counting**: Only agent calls increment the hop counter, not finalization calls
 - **Context Preservation**: Maintains conversation context while explaining the limit situation
 - **Tone Adaptation**: Respects user's requested tone preference in the suspension message
 - **Safe Message Filtering**: Prevents validation errors by filtering incomplete tool call sequences
@@ -326,7 +360,7 @@ The suspend node provides intelligent handling of hop limits with enhanced conte
 When hop limits are reached, the workflow automatically routes through:
 `Coordinator → SuspendNode → END`
 
-The suspend node now provides a more user-friendly experience by:
+The suspend node provides a user-friendly experience by:
 
 1. **Acknowledging the limit** without technical jargon
 2. **Explaining accomplishments** based on gathered information
@@ -336,7 +370,7 @@ The suspend node now provides a more user-friendly experience by:
 
 #### Coordinator Response Enforcement
 
-The coordinator now enforces proper routing by ensuring all responses go through the finalizer node:
+The coordinator enforces proper routing by ensuring all responses go through the finalizer node:
 
 - **No Direct Answers**: The coordinator never answers questions directly
 - **Consistent Flow**: All responses route through the finalizer for proper synthesis
@@ -357,7 +391,7 @@ The plugin bundle creation and graph integration follows a standardized design p
 
 This design ensures that tools, bound models, and agent nodes are properly integrated into the orchestration system.
 
-#### Enhanced Graph Edge Integration
+#### Graph Edge Integration
 
 The orchestrator uses plugin bundle edge definitions to create the routing network:
 
@@ -366,15 +400,8 @@ The orchestrator uses plugin bundle edge definitions to create the routing netwo
 - **Conditional Routing**: Agent decisions control the flow based on standardized decision method
 - **No Circular Routing**: Tools always route to coordinator, never back to agent
 - **Consistent Flow**: All responses follow the same routing path
-- **Better Debugging**: Logs show exactly what edges are being created
+- **Debugging**: Logs show exactly what edges are being created
 - **Dynamic Edge Creation**: Plugin bundles define their own routing logic
-
-This design ensures that:
-
-- **Conditional Routing**: Agent decisions control the flow based on standardized decision method
-- **No Circular Routing**: Tools always route to coordinator, never back to agent
-- **Consistent Flow**: All responses follow the same routing path
-- **Better Debugging**: Logs show exactly what edges are being created
 
 ### Plugin Loading Flow
 

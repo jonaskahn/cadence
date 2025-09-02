@@ -3,8 +3,8 @@ requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [project]
-name = "cadence"
-version = "1.0.4"
+name = "cadence-py"
+version = "1.0.5"
 description = "Cadence AI - Multi-agent AI orchestration system with plugin management"
 authors = [
     { name = "Jonas Kahn", email = "me@ifelse.one" }
@@ -48,6 +48,7 @@ dependencies = [
     "greenlet>=3.2.4,<4.0.0",
     "langchain-google-genai>=2.1.9,<2.2.0",
     "rich>=14.1.0,<15.0.0",
+    "python-multipart (>=0.0.20,<0.0.21)",
     "cadence-sdk>=1.0.5,<2.0.0"
 ]
 
@@ -75,6 +76,13 @@ dev = [
 
 [tool.poetry]
 packages = [{ include = "cadence", from = "src" }]
+
+# FOR LOCAL DEVELOPMENT
+#[tool.poetry.group.local]
+#optional = true
+#
+#[tool.poetry.group.local.dependencies]
+#cadence_sdk = { path = "./sdk", develop = true }
 
 [tool.poetry.group.docs]
 optional = true

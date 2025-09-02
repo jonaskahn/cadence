@@ -24,7 +24,7 @@ graph TB
     C --> F[System Prompt]
     C --> G[Tool Integration]
     C --> H[LLM Binding]
-    C --> T[Tone Adaptation]
+
 
     D --> I[Function Logic]
     D --> J[Input Validation]
@@ -63,9 +63,37 @@ Implements the AI agent behavior:
 - System prompt for LLM interaction
 - Tool integration and management
 - State management and decision making
-- LLM model binding
-- Response tone adaptation (inherited from orchestrator)
+- LLM model binding with parallel tool calls support
 - Must inherit from `BaseAgent` and implement required methods
+
+#### Parallel Tool Calls Support
+
+Cadence agents support parallel tool execution, allowing multiple tools to be called simultaneously for improved
+performance and efficiency:
+
+```python
+class MyAgent(BaseAgent):
+    def __init__(self, metadata: PluginMetadata):
+        # Enable parallel tool calls (default: True)
+        super().__init__(metadata, parallel_tool_calls=True)
+
+    # Or disable for sequential execution
+    # super().__init__(metadata, parallel_tool_calls=False)
+```
+
+**Benefits of Parallel Tool Calls:**
+
+- **Improved Performance**: Multiple tools execute concurrently instead of sequentially
+- **Better User Experience**: Faster response times for multi-step operations
+- **Resource Optimization**: Efficient use of computational resources
+- **Scalability**: Better handling of complex, multi-tool workflows
+
+**When to Use Parallel Tool Calls:**
+
+- ✅ **Enable** when tools are independent and can run concurrently
+- ✅ **Enable** for performance-critical operations
+- ✅ **Disable** when tools have dependencies or shared resources
+- ✅ **Disable** for debugging and troubleshooting
 
 ### 3. Tools
 
@@ -156,12 +184,14 @@ Every agent must implement:
 
 ## Plugin Discovery
 
-Cadence automatically discovers plugins through:
+Cadence automatically discovers plugins through multiple sources:
 
-1. **Directory Scanning**: Looks in configured plugin directories
-2. **Package Import**: Imports plugin modules
-3. **Auto-registration**: Registers discovered plugins
-4. **Validation**: Checks plugin structure and dependencies
+1. **Pip-installed Packages**: Discovers plugins from installed packages that depend on `cadence_sdk`
+2. **Directory Scanning**: Looks in configured plugin directories (via `CADENCE_PLUGINS_DIR`)
+3. **Uploaded Plugins**: Manages plugins uploaded via UI/API to the store directory
+4. **Auto-registration**: Registers discovered plugins through the SDK registry
+5. **Validation**: Comprehensive structure, dependency, and health validation
+6. **Hot Reloading**: Dynamic plugin reload without system restart
 
 ## Plugin Metadata
 
@@ -208,7 +238,7 @@ class MathPlugin(BasePlugin):
     def get_metadata() -> PluginMetadata:
         return PluginMetadata(
             name="mathematics",
-            version="1.0.3",
+            version="1.0.5",
             description="Mathematical calculations and arithmetic operations agent",
             agent_type="specialized",
             capabilities=["addition", "subtraction", "multiplication", "division"],
@@ -230,7 +260,8 @@ from cadence_sdk.base.metadata import PluginMetadata
 
 class MathAgent(BaseAgent):
     def __init__(self, metadata: PluginMetadata):
-        super().__init__(metadata)
+        # Enable parallel tool calls for better performance
+        super().__init__(metadata, parallel_tool_calls=True)
 
     def get_tools(self):
         from .tools import math_tools
@@ -321,19 +352,38 @@ math_tools = [add, multiply]
 - Comprehensive testing
 - Version management
 
+## Plugin Management
+
+### Upload and Management
+
+- **UI-based Upload**: Drag-and-drop plugin ZIP files through the Streamlit interface
+- **API-based Upload**: Programmatic plugin upload via REST API endpoints
+- **Plugin Store**: Centralized storage and versioning of uploaded plugins
+- **Health Monitoring**: Real-time plugin health checks and status monitoring
+- **Dependency Management**: Automatic installation of plugin dependencies
+
+### Plugin Lifecycle
+
+1. **Discovery**: Automatic detection from multiple sources
+2. **Validation**: Structure, dependency, and compatibility checks
+3. **Loading**: Dynamic plugin instantiation and model binding
+4. **Health Checks**: Continuous monitoring and failure isolation
+5. **Hot Reload**: Runtime plugin updates without system restart
+
 ## Next Steps
 
 Ready to build your first plugin? Continue with:
 
 - **[Creating Your First Plugin](first-plugin.md)** - Step-by-step tutorial
+- **[Plugin Upload Feature](upload-feature.md)** - Upload, manage, and reload plugins via UI/API
 - Explore the code of existing plugins for deeper patterns
 
 ## Examples
 
 Examples in this repository:
 
-- Math plugin: `plugins/src/cadence_plugins/math_agent/`
-- Search plugin: `plugins/src/cadence_plugins/search_agent/`
+- Math plugin: `plugins/src/cadence_example_plugins/math_agent/`
+- Search plugin: `plugins/src/cadence_example_plugins/search_agent/`
 
 ## Getting Help
 

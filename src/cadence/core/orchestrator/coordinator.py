@@ -72,16 +72,30 @@ class RoutingDecision:
 class ConversationPrompts:
     """System prompts for different conversation roles."""
 
-    COORDINATOR_INSTRUCTIONS = """You are Coordinator Node in Multiple Agents System. 
-Your goal is to analyze current user query base on whole context chat histories and decide next step by route to an agent from the **AVAILABLE AGENTS**. 
-**AVAILABLE AGENTS**
+    COORDINATOR_INSTRUCTIONS = """You are the Coordinator in a multi-agent system.
+
+Your job: Decide the next single step using the FULL conversation history (all messages), and route control to exactly ONE option from the **AVAILABLE AGENTS** or to finalize.
+
+CONTEXT AWARENESS:
+- Read the entire chat and tool results, not just the latest message.
+- Avoid rework: if needed information already exists in history, do NOT call an agent to fetch it again.
+- Prefer continuity: if the last agent was making progress and is still the best fit, keep routing to that agent.
+
+AVAILABLE AGENTS:
 {plugin_descriptions}
-- finalize: Call when you think the answer for the user query/question is ready, simple questions: like greeting, etc, and no suitable agents.
-**IMPORTANT**
-- Avoid rework if information existed in chat histories
-- Your role is select next step, only for this purpose
-**DECISION OUTPUT**
-- Choose ONLY ONE for the next step: {tool_options} | goto_finalize"""
+- **finalize**: Use when any of the following is true:
+  - The answer for the current user query is ready (e.g., simple questions, greetings).
+  - No suitable agent is needed or available for the next step.
+  - The most recent agent response indicates the user must provide additional information (clarification, missing inputs, choice selection). In this case, finalize so the system can ask the user clearly for the missing details.
+
+**STRICT RULES**:
+- Choose only one route.
+- Do not invent new tools or agents.
+- Do not perform tool work yourself; only select the next step.
+- Base your decision on the full chat state and provided capabilities.
+
+DECISION OUTPUT (choose EXACTLY ONE):
+- {tool_options} | goto_finalize"""
 
     HOP_LIMIT_REACHED = """You have reached maximum agent call ({current}/{maximum}) allowed by the system.
 **What this means:**
@@ -316,6 +330,9 @@ class MultiAgentOrchestrator(Loggable):
         if self._is_hop_limit_reached(state):
             self.logger.debug("Routing to SUSPEND due to hop limit reached")
             return RoutingDecision.SUSPEND
+        elif self._is_consecutive_agent_route_limit_reached(state):
+            self.logger.debug("Routing to SUSPEND due to consecutive coordinator->agent routing limit reached")
+            return RoutingDecision.SUSPEND
         elif self._has_tool_calls(state):
             self.logger.debug("Routing to CONTINUE due to tool calls present")
             return RoutingDecision.CONTINUE
@@ -328,6 +345,24 @@ class MultiAgentOrchestrator(Loggable):
         agent_hops = state.get("agent_hops", 0)
         max_agent_hops = self.settings.max_agent_hops
         return agent_hops >= max_agent_hops
+
+    def _is_consecutive_agent_route_limit_reached(self, state: AgentState) -> bool:
+        """Check if coordinator has routed to the SAME agent too many times consecutively.
+
+        Tracks only coordinator tool routes to agents (excludes finalize) and
+        requires that the selected agent is the same across consecutive decisions.
+        """
+        plugin_context = state.get("plugin_context", {}) or {}
+        same_agent_count = int(plugin_context.get("same_agent_consecutive_routes", 0) or 0)
+        limit = int(self.settings.coordinator_consecutive_agent_route_limit or 0)
+        try:
+            reached = limit > 0 and same_agent_count >= limit
+        except Exception:
+            reached = False
+        self.logger.debug(
+            f"Same-agent consecutive route check: count={same_agent_count}, limit={limit}, reached={reached}"
+        )
+        return reached
 
     def _has_tool_calls(self, state: AgentState) -> bool:
         """Check if last message contains tool calls that need processing."""
@@ -390,29 +425,70 @@ class MultiAgentOrchestrator(Loggable):
             plugin_descriptions=plugin_descriptions, tool_options=tool_options
         )
 
-        system_message = SystemMessage(content=coordinator_prompt)
-        coordinator_response = self.coordinator_model.invoke([system_message] + messages)
+        request_messages = [SystemMessage(content=coordinator_prompt)] + messages
+        coordinator_response = self.coordinator_model.invoke(request_messages)
 
         current_agent_hops = state.get("agent_hops", 0)
+        plugin_context = dict(state.get("plugin_context", {}) or {})
         is_routing_to_agent = self._has_tool_calls({"messages": [coordinator_response]})
 
         if is_routing_to_agent:
             tool_calls = getattr(coordinator_response, "tool_calls", [])
             if tool_calls:
                 current_agent_hops = self.calculate_agent_hops(current_agent_hops, tool_calls)
+                plugin_context = self._update_same_agent_route_counter(plugin_context, tool_calls)
         else:
             coordinator_response.content = ""
             coordinator_response.tool_calls = [ToolCall(id=str(uuid.uuid4()), name="goto_finalize", args={})]
-
-        return self._create_state_update(coordinator_response, current_agent_hops, state)
+            plugin_context = self._reset_route_counters(plugin_context)
+        updated_state = dict(state)
+        updated_state["plugin_context"] = plugin_context
+        return self._create_state_update(coordinator_response, current_agent_hops, updated_state)
 
     @staticmethod
     def calculate_agent_hops(current_agent_hops, tool_calls):
-        potential_tool_calls = list(map(lambda x: x.get("name"), tool_calls))
+
+        def _get_name(tc):
+            try:
+                if isinstance(tc, dict):
+                    return tc.get("name")
+                return getattr(tc, "name", None)
+            except Exception:
+                return None
+
+        potential_tool_calls = [_get_name(tc) for tc in tool_calls]
         for potential_tool_call in potential_tool_calls:
-            if potential_tool_call != "goto_finalize":
+            if potential_tool_call and potential_tool_call != "goto_finalize":
                 current_agent_hops += 1
         return current_agent_hops
+
+    @staticmethod
+    def _reset_route_counters(plugin_context: Dict[str, Any]) -> Dict[str, Any]:
+        plugin_context = dict(plugin_context or {})
+        plugin_context["same_agent_consecutive_routes"] = 0
+        plugin_context["last_routed_agent"] = None
+        return plugin_context
+
+    @staticmethod
+    def _update_same_agent_route_counter(
+        plugin_context: Dict[str, Any], tool_calls: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        plugin_context = dict(plugin_context or {})
+        routed_tools = [tc.get("name") if isinstance(tc, dict) else getattr(tc, "name", "") for tc in tool_calls]
+        selected_tool = routed_tools[0] if routed_tools else ""
+        if selected_tool == "goto_finalize":
+            return MultiAgentOrchestrator._reset_route_counters(plugin_context)
+        if selected_tool.startswith("goto_"):
+            selected_agent = selected_tool[len("goto_") :]
+            last_agent = plugin_context.get("last_routed_agent")
+            if last_agent and last_agent == selected_agent:
+                plugin_context["same_agent_consecutive_routes"] = (
+                    int(plugin_context.get("same_agent_consecutive_routes", 0) or 0) + 1
+                )
+            else:
+                plugin_context["same_agent_consecutive_routes"] = 1
+                plugin_context["last_routed_agent"] = selected_agent
+        return plugin_context
 
     def _suspend_node(self, state: AgentState) -> AgentState:
         """Handle graceful conversation termination when hop limits are exceeded."""

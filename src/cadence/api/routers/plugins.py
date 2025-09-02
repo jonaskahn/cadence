@@ -9,9 +9,11 @@ from __future__ import annotations
 
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi.responses import JSONResponse
 
 from ...infrastructure.plugins.sdk_manager import SDKPluginManager
+from ...infrastructure.plugins.upload_manager import PluginUploadManager, PluginUploadResult
 from ..schemas import PluginInfo
 from ..services import global_service_container
 
@@ -21,6 +23,12 @@ plugins_api_router = APIRouter()
 def get_plugin_manager() -> SDKPluginManager:
     """Dependency injection function to retrieve the plugin manager from the global service container."""
     return global_service_container.get_plugin_manager()
+
+
+def get_upload_manager() -> PluginUploadManager:
+    """Dependency injection function to retrieve the upload manager."""
+    plugin_manager = global_service_container.get_plugin_manager()
+    return PluginUploadManager(plugin_manager)
 
 
 @plugins_api_router.get("/plugins", response_model=List[PluginInfo])
@@ -45,6 +53,7 @@ async def list_available_plugins(plugin_manager: SDKPluginManager = Depends(get_
                     description=plugin_metadata.description,
                     capabilities=plugin_metadata.capabilities,
                     status=plugin_status,
+                    source=plugin_manager.get_plugin_source(plugin_metadata.name),
                 )
             )
 
@@ -99,6 +108,48 @@ async def reload_all_plugins(plugin_manager: SDKPluginManager = Depends(get_plug
         }
     except Exception as reload_error:
         raise HTTPException(status_code=500, detail=f"Plugin reload failed: {str(reload_error)}")
+
+
+@plugins_api_router.post("/plugins/upload")
+async def upload_plugin(
+    file: UploadFile = File(...),
+    force_overwrite: bool = Form(default=False),
+    upload_manager: PluginUploadManager = Depends(get_upload_manager),
+) -> JSONResponse:
+    """Upload a plugin package as a ZIP file.
+
+    This endpoint accepts plugin packages in ZIP format with the naming convention:
+    name-version.zip (e.g., my_plugin-1.0.0.zip)
+
+    The plugin will be validated, extracted, and automatically loaded into the system.
+    """
+    try:
+        result = upload_manager.upload_plugin(file, force_overwrite)
+
+        if result.success:
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "success": True,
+                    "message": result.message,
+                    "plugin_name": result.plugin_name,
+                    "plugin_version": result.plugin_version,
+                    "details": result.details,
+                },
+            )
+        else:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "success": False,
+                    "message": result.message,
+                    "plugin_name": result.plugin_name,
+                    "plugin_version": result.plugin_version,
+                    "details": result.details,
+                },
+            )
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"success": False, "message": f"Upload failed: {str(e)}"})
 
 
 router = plugins_api_router

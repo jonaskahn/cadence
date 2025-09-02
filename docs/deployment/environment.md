@@ -39,7 +39,7 @@ Cadence supports multiple configuration methods:
 | `CADENCE_BOT_DESCRIPTION`    | "Multiple Agents Chatbot System" | Bot description                |
 | `CADENCE_BOT_CREATOR`        | "JonasKahn"                      | Bot creator name               |
 | `CADENCE_BOT_SPECIALIZATION` | "Business"                       | Bot specialization area        |
-| `CADENCE_BOT_VERSION`        | "1.0.3"                          | Bot version number             |
+| `CADENCE_BOT_VERSION`        | "1.0.5"                          | Bot version number             |
 
 ### LLM Provider Configuration
 
@@ -56,6 +56,7 @@ Cadence supports multiple configuration methods:
 >
 > - `CADENCE_DEFAULT_LLM_MODEL` is not used.
 > - For Azure OpenAI, default model resolution uses `CADENCE_OPENAI_DEFAULT_MODEL`. You can still set
+
     `CADENCE_AZURE_OPENAI_DEFAULT_MODEL`, but it is not used by the core default-model resolver.
 
 ### API Keys
@@ -81,9 +82,9 @@ When using `azure-openai` (alias: `azure`) as the provider, configure the follow
 
 ### Plugin Configuration
 
-| Variable              | Default                             | Description                                            |
-|-----------------------|-------------------------------------|--------------------------------------------------------|
-| `CADENCE_PLUGINS_DIR` | `["./plugins/src/cadence_plugins"]` | Plugin directory path(s). Accepts a path or JSON list. |
+| Variable              | Default                                     | Description                                            |
+|-----------------------|---------------------------------------------|--------------------------------------------------------|
+| `CADENCE_PLUGINS_DIR` | `["./plugins/src/cadence_example_plugins"]` | Plugin directory path(s). Accepts a path or JSON list. |
 
 Examples:
 
@@ -241,7 +242,7 @@ CADENCE_BOT_NAME="Cadence AI"
 CADENCE_BOT_DESCRIPTION="Multiple Agents Chatbot System"
 CADENCE_BOT_CREATOR="JonasKahn"
 CADENCE_BOT_SPECIALIZATION="Business"
-CADENCE_BOT_VERSION="1.0.3"
+CADENCE_BOT_VERSION="1.0.5"
 
 # LLM Provider Configuration
 CADENCE_DEFAULT_LLM_PROVIDER=openai
@@ -302,7 +303,7 @@ CADENCE_BOT_NAME="Cadence AI"
 CADENCE_BOT_DESCRIPTION="Multiple Agents Chatbot System"
 CADENCE_BOT_CREATOR="JonasKahn"
 CADENCE_BOT_SPECIALIZATION="Business"
-CADENCE_BOT_VERSION="1.0.3"
+CADENCE_BOT_VERSION="1.0.5"
 
 # LLM Provider Configuration
 CADENCE_DEFAULT_LLM_PROVIDER=openai
@@ -520,7 +521,7 @@ data:
   CADENCE_BOT_DESCRIPTION: "Multiple Agents Chatbot System"
   CADENCE_BOT_CREATOR: "JonasKahn"
   CADENCE_BOT_SPECIALIZATION: "Business"
-  CADENCE_BOT_VERSION: "1.0.3"
+  CADENCE_BOT_VERSION: "1.0.5"
   # LLM Configuration
   CADENCE_DEFAULT_LLM_PROVIDER: "openai"
   # CADENCE_OPENAI_DEFAULT_MODEL: "gpt-4.1"
@@ -614,7 +615,7 @@ data:
         },
         {
           "name": "CADENCE_BOT_VERSION",
-          "value": "1.0.3"
+          "value": "1.0.5"
         },
         {
           "name": "CADENCE_DEFAULT_LLM_PROVIDER",

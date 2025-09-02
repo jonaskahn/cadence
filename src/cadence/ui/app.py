@@ -416,6 +416,46 @@ def main():
         if st.session_state.client is None:
             st.session_state.client = create_api_client(api_url)
 
+        # Plugin Upload Section
+        st.subheader("📤 Upload Plugin")
+
+        uploaded_file = st.file_uploader(
+            "Choose a plugin ZIP file", type=["zip"], help="Upload a plugin package in ZIP format (name-version.zip)"
+        )
+
+        force_overwrite = st.checkbox("Force overwrite if plugin exists", value=False)
+
+        if uploaded_file is not None and st.button("Upload Plugin", use_container_width=True):
+            with st.spinner("Uploading plugin..."):
+                try:
+                    # Save uploaded file temporarily
+                    temp_path = f"/tmp/{uploaded_file.name}"
+                    with open(temp_path, "wb") as f:
+                        f.write(uploaded_file.getbuffer())
+
+                    result = st.session_state.client.upload_plugin(temp_path, force_overwrite)
+
+                    if result.get("success"):
+                        st.success(result.get("message", "Plugin uploaded successfully!"))
+                        # Refresh plugins list
+                        st.session_state.plugins = load_available_plugins(st.session_state.client)
+                    else:
+                        st.error(result.get("message", "Upload failed"))
+
+                    # Clean up temp file
+                    import os
+
+                    if os.path.exists(temp_path):
+                        os.remove(temp_path)
+
+                except Exception as e:
+                    st.error(f"Upload failed: {str(e)}")
+
+        st.markdown("---")
+
+        # Existing Plugin Management
+        st.subheader("🔄 Plugin Operations")
+
         if st.button("🔄 Refresh Plugins", use_container_width=True):
             with st.spinner("Refreshing plugins..."):
                 reload_result = reload_all_plugins(st.session_state.client)
@@ -435,6 +475,7 @@ def main():
                 status_color = "🟢" if plugin.status == "healthy" else "🔴"
                 with st.expander(f"{status_color} {plugin.name}"):
                     st.write(f"**Status:** {plugin.status}")
+                    st.write(f"**Source:** {getattr(plugin, 'source', 'unknown')}")
                     st.write(f"**Version:** {plugin.version}")
                     st.write(f"**Description:** {plugin.description}")
                     if plugin.capabilities:
