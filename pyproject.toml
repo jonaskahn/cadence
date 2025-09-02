@@ -3,7 +3,7 @@ requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [project]
-name = "cadence-py"
+name = "cadence"
 version = "1.0.5"
 description = "Cadence AI - Multi-agent AI orchestration system with plugin management"
 authors = [
