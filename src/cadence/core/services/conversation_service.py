@@ -4,6 +4,7 @@ Orchestrates complete conversation workflows including thread management,
 multi-agent coordination, and conversation storage optimization.
 """
 
+import time
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -90,11 +91,14 @@ class ConversationService(Loggable):
             },
         }
 
+        start_time = time.time()
         self.logger.debug(f"Processing message with orchestrator for thread {thread.thread_id}")
         orchestrator_result = await self.orchestrator.ask(agent_state)
+        processing_time = time.time() - start_time
 
         response_text = self._extract_response_text(orchestrator_result)
         processing_metadata = self._extract_processing_metadata(orchestrator_result)
+        processing_metadata["processing_time"] = processing_time
 
         user_token_count = self._estimate_tokens(message)
         assistant_token_count = self._estimate_tokens(response_text)
@@ -209,7 +213,6 @@ class ConversationService(Loggable):
             "tools_used": tools_used,
             "agent_hops": agent_hops,
             "routing_history": orchestrator_result.get("plugin_context", {}).get("routing_history", []),
-            "processing_time": None,
             "model_used": "default",
         }
 

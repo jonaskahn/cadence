@@ -61,30 +61,18 @@ restore_original_name() {
     print_success "Project name restored to '$ORIGINAL_NAME'"
 }
 
-# Calculate next version
-get_next_version() {
+# Calculate next versions
+calculate_next_versions() {
     local current_version=$1
-    local bump_type=$2
+    local major minor patch
     
-    IFS='.' read -ra VERSION_PARTS <<< "$current_version"
-    local major=${VERSION_PARTS[0]}
-    local minor=${VERSION_PARTS[1]}
-    local patch=${VERSION_PARTS[2]}
+    IFS='.' read -r major minor patch <<< "$current_version"
     
-    case $bump_type in
-        "patch")
-            echo "$major.$minor.$((patch + 1))"
-            ;;
-        "minor")
-            echo "$major.$((minor + 1)).0"
-            ;;
-        "major")
-            echo "$((major + 1)).0.0"
-            ;;
-        *)
-            echo "$current_version"
-            ;;
-    esac
+    local next_patch="$major.$minor.$((patch + 1))"
+    local next_minor="$major.$((minor + 1)).0"
+    local next_major="$((major + 1)).0.0"
+    
+    echo "$next_patch $next_minor $next_major"
 }
 
 # Update version in pyproject.toml
@@ -145,17 +133,10 @@ show_help() {
     echo "Options:"
     echo "  -h, --help          Show this help message"
     echo "  -v, --version       Show current version"
-    echo "  --patch             Bump patch version (0.1.0 -> 0.1.1)"
-    echo "  --minor             Bump minor version (0.1.0 -> 0.2.0)"
-    echo "  --major             Bump major version (0.1.0 -> 1.0.0)"
-    echo "  --no-bump           Don't bump version"
-    echo "  --no-tag            Don't create git tag"
     echo "  --test              Upload to TestPyPI instead of PyPI"
     echo ""
     echo "Examples:"
-    echo "  $0 --patch          # Bump patch version and deploy"
-    echo "  $0 --minor          # Bump minor version and deploy"
-    echo "  $0 --no-bump        # Deploy current version without bumping"
+    echo "  $0                  # Interactive deployment"
     echo "  $0 --test           # Deploy to TestPyPI"
     echo ""
     echo "Note: Project will be temporarily renamed to '$PYPI_NAME' during deployment"
@@ -185,33 +166,11 @@ check_dependencies() {
 
 # Main deployment function
 deploy() {
-    local bump_type=""
-    local create_tag=true
     local test_pypi=false
     
     # Parse command line arguments
     while [[ $# -gt 0 ]]; do
         case $1 in
-            --patch)
-                bump_type="patch"
-                shift
-                ;;
-            --minor)
-                bump_type="minor"
-                shift
-                ;;
-            --major)
-                bump_type="major"
-                shift
-                ;;
-            --no-bump)
-                bump_type=""
-                shift
-                ;;
-            --no-tag)
-                create_tag=false
-                shift
-                ;;
             --test)
                 test_pypi=true
                 shift
@@ -242,48 +201,60 @@ deploy() {
     fi
     
     # Check if working directory is clean
-    if ! git diff-index --quiet HEAD --; then
-        print_warning "Working directory is not clean. Please commit or stash your changes."
+    if [ -n "$(git status --porcelain)" ]; then
+        print_warning "You have uncommitted changes. Consider committing them before deployment."
+        read -p "Continue anyway? (y/N): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            print_info "Deployment cancelled."
+            exit 0
+        fi
     fi
     
     # Get current version
     local current_version=$(get_current_version)
     print_info "Current version: $current_version"
     
-    # Determine next version
-    local next_version=""
-    if [ -n "$bump_type" ]; then
-        next_version=$(get_next_version "$current_version" "$bump_type")
-        print_info "Next version will be: $next_version"
-        
-        # Confirm version bump
-        echo
-        echo "Select version bump type:"
-        echo "1) patch ($current_version -> $next_version)"
-        echo "2) minor ($current_version -> $next_version)"
-        echo "3) major ($current_version -> $next_version)"
-        echo "4) Skip version bump"
-        echo
-        read -p "Enter your choice (1-4): " choice
-        
-        case $choice in
-            1|2|3)
-                print_info "Proceeding with version bump to $next_version"
-                update_version "$next_version"
-                ;;
-            4)
-                print_info "Skipping version bump"
-                bump_type=""
-                next_version="$current_version"
-                ;;
-            *)
-                print_error "Invalid choice"
-                exit 1
-                ;;
-        esac
-    else
-        next_version="$current_version"
-    fi
+    # Calculate next versions
+    read -r next_patch next_minor next_major <<< "$(calculate_next_versions "$current_version")"
+    
+    # Ask for version bump type
+    echo
+    echo "Select version bump type:"
+    echo "1) patch ($current_version -> $next_patch)"
+    echo "2) minor ($current_version -> $next_minor)"
+    echo "3) major ($current_version -> $next_major)"
+    echo "4) Skip version bump"
+    read -p "Enter choice (1-4): " -n 1 -r
+    echo
+    
+    local new_version="$current_version"
+    case $REPLY in
+        1)
+            print_info "Bumping patch version..."
+            new_version="$next_patch"
+            update_version "$new_version"
+            ;;
+        2)
+            print_info "Bumping minor version..."
+            new_version="$next_minor"
+            update_version "$new_version"
+            ;;
+        3)
+            print_info "Bumping major version..."
+            new_version="$next_major"
+            update_version "$new_version"
+            ;;
+        4)
+            print_info "Skipping version bump..."
+            ;;
+        *)
+            print_error "Invalid choice. Exiting."
+            exit 1
+            ;;
+    esac
+    
+    print_info "Version: $new_version"
     
     # Rename project for PyPI deployment
     rename_for_pypi
@@ -291,16 +262,42 @@ deploy() {
     # Build package
     build_package
     
+    # Check if build was successful
+    if [ ! -d "dist" ] || [ -z "$(ls -A dist/)" ]; then
+        print_error "Build failed. No distribution files found."
+        restore_original_name
+        exit 1
+    fi
+    
+    # Show what will be uploaded
+    echo
+    print_info "Files to be uploaded:"
+    ls -la dist/
+    
+    # Ask for confirmation
+    echo
+    read -p "Deploy to PyPI? (y/N): " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        print_info "Deployment cancelled."
+        restore_original_name
+        exit 0
+    fi
+    
     # Upload to PyPI
     upload_to_pypi "$test_pypi"
     
     # Restore original project name
     restore_original_name
     
-    # Create git tag if requested
-    if [ "$create_tag" = true ] && [ -n "$bump_type" ]; then
-        print_info "Creating git tag for version $next_version"
-        create_git_tag "$next_version"
+    # Optional: Create git tag
+    read -p "Create git tag for version $new_version? (y/N): " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        print_info "Creating git tag..."
+        create_git_tag "$new_version"
+        print_success "Git tag v$new_version created!"
+        print_warning "Don't forget to push the tag: git push origin v$new_version"
     fi
     
     # Show success message
