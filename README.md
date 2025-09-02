@@ -2,7 +2,8 @@
 
 A plugin-based multi-agent conversational AI framework built on FastAPI, designed for building intelligent chatbot systems with extensible agent architectures.
 
-![Cadence Demo](docs/images/demo001.webp)
+![demo](https://github.com/user-attachments/assets/ba7ceb1d-3226-4634-8491-abf7fab04add)
+
 
 ## 🚀 Features
 
