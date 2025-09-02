@@ -48,12 +48,13 @@ class SystemStatus:
 class CadenceApiClient:
     """HTTP client for communicating with the Cadence FastAPI backend."""
 
-    def __init__(self, api_base_url: str = "http://localhost:8000") -> None:
+    def __init__(self, api_base_url: str = "http://localhost:8000", timeout: float = 300.0) -> None:
         self.base_url = api_base_url.rstrip("/")
+        self.timeout = timeout
 
     def _make_request(self, http_method: str, api_endpoint: str, **kwargs) -> Any:
         """Make HTTP request to backend and return JSON response."""
-        with httpx.Client(base_url=self.base_url, timeout=30.0) as http_client:
+        with httpx.Client(base_url=self.base_url, timeout=self.timeout) as http_client:
             api_response = http_client.request(http_method, api_endpoint, **kwargs)
             api_response.raise_for_status()
             return api_response.json()
@@ -63,7 +64,7 @@ class CadenceApiClient:
 
         Falls back to a generic error payload if JSON parsing fails.
         """
-        with httpx.Client(base_url=self.base_url, timeout=30.0) as http_client:
+        with httpx.Client(base_url=self.base_url, timeout=self.timeout) as http_client:
             api_response = http_client.request(http_method, api_endpoint, **kwargs)
             try:
                 data = api_response.json()

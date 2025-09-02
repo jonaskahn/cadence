@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from cadence_sdk.base.loggable import Loggable
 from fastapi import HTTPException, UploadFile
 from pydantic import BaseModel
 
@@ -35,12 +36,11 @@ class PluginUploadResult(BaseModel):
     details: Optional[Dict] = None
 
 
-class PluginUploadManager:
+class PluginUploadManager(Loggable):
     """Manage plugin uploads, validation, installation, and listing."""
 
     def __init__(self, plugin_manager: SDKPluginManager):
         self.plugin_manager = plugin_manager
-        self.logger = logging.getLogger(__name__)
         self.storage_root = Path(settings.storage_root)
         self.store_plugin_dir = self.storage_root / "uploaded"
         self.store_archived_dir = self.storage_root / "archived"

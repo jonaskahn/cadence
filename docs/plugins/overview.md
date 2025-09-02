@@ -238,7 +238,7 @@ class MathPlugin(BasePlugin):
     def get_metadata() -> PluginMetadata:
         return PluginMetadata(
             name="mathematics",
-            version="1.0.5",
+            version="1.0.7",
             description="Mathematical calculations and arithmetic operations agent",
             agent_type="specialized",
             capabilities=["addition", "subtraction", "multiplication", "division"],

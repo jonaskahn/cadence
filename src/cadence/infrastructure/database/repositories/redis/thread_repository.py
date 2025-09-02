@@ -1,6 +1,7 @@
 """Redis-based ThreadRepository implementation."""
 
 import logging
+import os
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
@@ -11,6 +12,8 @@ from cadence.domain.models import Thread, ThreadStatus
 from ...repositories.thread_repository import ThreadRepository
 
 logger = logging.getLogger(__name__)
+if bool(os.environ.get("CADENCE_DEBUG", False)):
+    logger.setLevel(logging.DEBUG)
 
 
 class RedisThreadRepository(ThreadRepository):

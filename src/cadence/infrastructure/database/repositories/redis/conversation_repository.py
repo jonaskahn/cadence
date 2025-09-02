@@ -2,6 +2,7 @@
 
 import json
 import logging
+import os
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
@@ -12,6 +13,8 @@ from cadence.domain.models import Conversation
 from ...repositories.conversation_repository import ConversationRepository
 
 logger = logging.getLogger(__name__)
+if bool(os.environ.get("CADENCE_DEBUG", False)):
+    logger.setLevel(logging.DEBUG)
 
 
 class RedisConversationRepository(ConversationRepository):

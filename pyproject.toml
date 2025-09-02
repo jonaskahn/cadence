@@ -3,8 +3,8 @@ requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [project]
-name = "cadence-py"
-version = "1.0.5"
+name = "cadence"
+version = "1.0.7"
 description = "Cadence AI - Multi-agent AI orchestration system with plugin management"
 authors = [
     { name = "Jonas Kahn", email = "me@ifelse.one" }
@@ -49,7 +49,8 @@ dependencies = [
     "langchain-google-genai>=2.1.9,<2.2.0",
     "rich>=14.1.0,<15.0.0",
     "python-multipart (>=0.0.20,<0.0.21)",
-    "cadence-sdk>=1.0.5,<2.0.0"
+    "click (>=8.2.1,<9.0.0)",
+    "cadence-sdk>=1.0.7,<2.0.0"
 ]
 
 [project.urls]

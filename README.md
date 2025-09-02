@@ -1,7 +1,7 @@
 # Cadence 🤖 Multi-agents AI Framework
 
 A plugin-based multi-agent conversational AI framework built on FastAPI, designed for building intelligent chatbot
-systems with extensible agent architectures.
+systems with extensible the plugin/modularization architecture.
 
 ![demo](https://github.com/user-attachments/assets/ba7ceb1d-3226-4634-8491-abf7fab04add)
 

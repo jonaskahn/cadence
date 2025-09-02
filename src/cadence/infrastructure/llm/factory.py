@@ -153,7 +153,6 @@ class ProviderRegistry(Loggable):
             "google": GoogleGenAIProvider(),
             "gemini": GoogleGenAIProvider(),
         }
-        self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
 
     def get_provider(self, provider_name: str) -> Optional[BaseLLMProvider]:
         """Return provider by name.

@@ -24,8 +24,6 @@ from ..orchestrator.coordinator import MultiAgentOrchestrator
 from .conversation_service import ConversationService
 from .orchestrator_service import OrchestratorService
 
-logger = logging.getLogger(__name__)
-
 try:
     from langgraph.checkpoint.redis import RedisSaver
 except Exception:

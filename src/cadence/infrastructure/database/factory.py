@@ -7,6 +7,8 @@ based on configuration, providing backend-agnostic access to storage.
 import logging
 from typing import Any, Dict, Tuple
 
+from sdk.src.cadence_sdk.base.loggable import Loggable
+
 from ...config.settings import Settings
 from .connection import DatabaseConnectionManager, initialize_databases
 from .repositories import (
@@ -20,10 +22,8 @@ from .repositories import (
     ThreadRepository,
 )
 
-logger = logging.getLogger(__name__)
 
-
-class DatabaseFactory:
+class DatabaseFactory(Loggable):
     """Factory for creating database repositories and session stores.
 
     Implements factory pattern to provide backend-agnostic access to database
@@ -37,7 +37,7 @@ class DatabaseFactory:
     async def initialize(self) -> None:
         """Initialize database connections for configured backends."""
         self.connection_manager = await initialize_databases(self.settings)
-        logger.info("Database factory initialized with configured backends only")
+        self.logger.info("Database factory initialized with configured backends only")
 
     async def create_repositories(self) -> Tuple[ThreadRepository, ConversationRepository]:
         """Create repository instances based on configuration."""
@@ -49,13 +49,12 @@ class DatabaseFactory:
         else:
             return self._create_memory_repositories()
 
-    @staticmethod
-    def _create_memory_repositories() -> Tuple[ThreadRepository, ConversationRepository]:
+    def _create_memory_repositories(self) -> Tuple[ThreadRepository, ConversationRepository]:
         """Create in-memory repository implementations."""
         thread_repo = InMemoryThreadRepository()
         conversation_repo = InMemoryConversationRepository(thread_repo)
 
-        logger.info("Created in-memory repositories")
+        self.logger.info("Created in-memory repositories")
         return thread_repo, conversation_repo
 
     async def _create_postgresql_repositories(self) -> Tuple[ThreadRepository, ConversationRepository]:
@@ -71,7 +70,7 @@ class DatabaseFactory:
             self.connection_manager.postgres_session_factory, thread_repo
         )
 
-        logger.info("Created PostgreSQL repositories with SQLAlchemy")
+        self.logger.info("Created PostgreSQL repositories with SQLAlchemy")
         return thread_repo, conversation_repo
 
     async def _create_redis_repositories(self) -> Tuple[ThreadRepository, ConversationRepository]:
@@ -85,7 +84,7 @@ class DatabaseFactory:
         thread_repo = RedisThreadRepository(self.connection_manager.redis_client)
         conversation_repo = RedisConversationRepository(self.connection_manager.redis_client, thread_repo)
 
-        logger.info("Created Redis repositories with high-performance storage")
+        self.logger.info("Created Redis repositories with high-performance storage")
         return thread_repo, conversation_repo
 
     async def get_connection_manager(self) -> DatabaseConnectionManager:

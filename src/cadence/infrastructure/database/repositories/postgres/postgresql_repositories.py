@@ -5,6 +5,7 @@ Optimized for PostgreSQL features like full-text search, JSON support, and advan
 """
 
 import logging
+import os
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
@@ -21,6 +22,8 @@ from cadence.infrastructure.database.repositories.conversation_repository import
 from cadence.infrastructure.database.repositories.thread_repository import ThreadRepository
 
 logger = logging.getLogger(__name__)
+if bool(os.environ.get("CADENCE_DEBUG", False)):
+    logger.setLevel(logging.DEBUG)
 
 
 class PostgreSQLThreadRepository(ThreadRepository):

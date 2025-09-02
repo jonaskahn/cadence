@@ -56,6 +56,10 @@ class Settings(BaseSettings):
         default=5,
         description="Max consecutive coordinator routes to agents (excluding finalize) before suspend",
     )
+    allowed_coordinator_terminate: bool = Field(
+        default=True,
+        description="Allow coordinator to terminate conversation directly without routing through finalizer",
+    )
 
     session_timeout: int = Field(default=3600, description="Session timeout in seconds")
     max_session_history: int = Field(default=100, description="Maximum conversation history per session")
@@ -102,6 +106,21 @@ class Settings(BaseSettings):
     custom_middleware: List[str] = Field(default=[], description="Custom middleware modules")
     custom_routes: List[str] = Field(default=[], description="Custom route modules")
     environment: str = Field(default="development", description="Environment name")
+
+    additional_coordinator_context: str = Field(
+        default="You are a helpful Cadence chatbot - designed, trained, customized by JonasKahn",
+        description="Additional coordinator context",
+    )
+
+    additional_finalizer_context: str = Field(
+        default="You are a helpful Cadence chatbot - designed, trained, customized by JonasKahn",
+        description="Additional finalizer context",
+    )
+
+    additional_suspend_context: str = Field(
+        default="You are a helpful Cadence chatbot - designed, trained, customized by JonasKahn",
+        description="Additional suspend context",
+    )
 
     model_config = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", case_sensitive=False, env_prefix="CADENCE_", extra="ignore"

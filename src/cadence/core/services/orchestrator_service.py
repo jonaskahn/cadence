@@ -4,20 +4,18 @@ Provides high-level wrapper around MultiAgentOrchestrator for application servic
 handling LangGraph state management and response processing.
 """
 
-import logging
 import time
 from typing import Any, Dict, List, Optional
 
+from cadence_sdk.base.loggable import Loggable
 from cadence_sdk.types.state import AgentState
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 
 from ...domain.models.conversation import Conversation
 from ..orchestrator.coordinator import MultiAgentOrchestrator
 
-logger = logging.getLogger(__name__)
 
-
-class OrchestratorResponse:
+class OrchestratorResponse(Loggable):
     """Response container for orchestrator processing results.
 
     Encapsulates information generated during multi-agent conversation processing,
@@ -64,7 +62,7 @@ class OrchestratorResponse:
         }
 
 
-class OrchestratorService:
+class OrchestratorService(Loggable):
     """Service wrapper for LangGraph orchestration.
 
     Provides clean interfaces for context preparation, orchestrator execution,
@@ -103,7 +101,9 @@ class OrchestratorService:
                 },
             }
 
-            logger.debug(f"Processing message for thread {thread_id} with {len(langgraph_context)} context messages")
+            self.logger.debug(
+                f"Processing message for thread {thread_id} with {len(langgraph_context)} context messages"
+            )
 
             result = await self.orchestrator.ask(state)
 
@@ -116,7 +116,7 @@ class OrchestratorService:
             routing_history = result.get("plugin_context", {}).get("routing_history", [])
             tools_used = self._extract_tools_used(result)
 
-            logger.info(f"Orchestrator completed for thread {thread_id}: {response_text[:100]}...")
+            self.logger.info(f"Orchestrator completed for thread {thread_id}: {response_text[:100]}...")
 
             return OrchestratorResponse(
                 response=response_text,
@@ -132,7 +132,7 @@ class OrchestratorService:
             processing_time = time.time() - start_time
             error_message = f"Orchestrator error: {str(e)}"
 
-            logger.error(f"Orchestrator failed for thread {thread_id}: {error_message}")
+            self.logger.error(f"Orchestrator failed for thread {thread_id}: {error_message}")
 
             return OrchestratorResponse(
                 response=f"I encountered an error processing your request: {str(e)}",
@@ -142,8 +142,7 @@ class OrchestratorService:
                 error=error_message,
             )
 
-    @staticmethod
-    def _prepare_context(history: List[Conversation], current_message: str) -> List[BaseMessage]:
+    def _prepare_context(self, history: List[Conversation], current_message: str) -> List[BaseMessage]:
         """Prepare LangGraph message context from conversation history.
 
         Reconstructs conversation context from optimized storage (user input +
@@ -156,7 +155,7 @@ class OrchestratorService:
 
         messages.append(HumanMessage(content=current_message))
 
-        logger.debug(f"Prepared context: {len(messages)} messages from {len(history)} stored turns")
+        self.logger.debug(f"Prepared context: {len(messages)} messages from {len(history)} stored turns")
         return messages
 
     @staticmethod
@@ -221,7 +220,7 @@ class OrchestratorService:
                 "graph_recursion_limit": self.orchestrator.settings.graph_recursion_limit,
             }
         except Exception as e:
-            logger.warning(f"Error getting orchestrator info: {e}")
+            self.logger.warning(f"Error getting orchestrator info: {e}")
             return {"error": str(e), "available_plugins": [], "healthy_plugins": [], "failed_plugins": []}
 
     async def health_check(self) -> Dict[str, Any]:

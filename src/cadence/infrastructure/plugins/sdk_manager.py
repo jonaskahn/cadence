@@ -258,27 +258,6 @@ class SDKPluginManager(Loggable):
         try:
             count = self._dir_discovery.import_plugins_from_directories(directories)
             self.logger.debug(f"Directory discovery imported {count} plugin modules")
-            # Mark potential sources as directory or storage based on configured storage root
-            try:
-                from ...config.settings import settings
-
-                uploaded_root = (Path(settings.storage_root) / "uploaded").resolve()
-            except Exception:
-                uploaded_root = None
-
-            for d in directories:
-                try:
-                    path = Path(d).resolve()
-                    for contract in discover_plugins() or []:
-                        mod_file = self._get_class_module_file(contract.plugin_class)
-                        if not mod_file:
-                            continue
-                        if str(mod_file).startswith(str(path)):
-                            is_storage = uploaded_root is not None and path == uploaded_root
-                            src = "storage" if is_storage else "directory"
-                            self._source_map[contract.name] = src
-                except Exception:
-                    continue
         except Exception as e:
             self.logger.error(f"Directory plugin discovery failed: {e}")
 
@@ -293,8 +272,6 @@ class SDKPluginManager(Loggable):
 
             count = _import_env()
             self.logger.debug(f"Imported {count} pip plugin packages")
-            for contract in discover_plugins() or []:
-                self._source_map.setdefault(contract.name, "environment")
             return count
         except Exception as e:
             self.logger.warning(f"Pip plugin discovery unavailable or failed: {e}")
@@ -307,7 +284,12 @@ class SDKPluginManager(Loggable):
         if a plugin with the same metadata.name exists locally, it overrides
         the version provided by a pip-installed package (last registration wins).
         """
+        # Load environment plugins first and snapshot their names as winners
         self.load_enviroment_plugins()
+        env_contracts_after_env_load = discover_plugins() or []
+        env_plugin_names = {c.name for c in env_contracts_after_env_load}
+
+        # Then load uploaded/directory plugins
         self.load_directory_plugins()
 
         contracts = discover_plugins()
@@ -324,6 +306,13 @@ class SDKPluginManager(Loggable):
             configured_dirs = []
         self._source_map.clear()
         for contract in contracts:
+            # Priority: if a plugin name was present right after env load, mark as environment
+            if contract.name in env_plugin_names:
+                src = "environment"
+                self._source_map[contract.name] = src
+                self.logger.debug(f"Source map (env priority): {contract.name} src={src}")
+                continue
+
             src = "environment"
             try:
                 mod_path = self._get_class_module_file(contract.plugin_class)

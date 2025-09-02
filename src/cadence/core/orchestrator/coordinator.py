@@ -6,6 +6,7 @@ and infinite loop prevention through hop counters.
 
 import traceback
 import uuid
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List
 
@@ -66,15 +67,16 @@ class RoutingDecision:
     CONTINUE = "continue"
     SUSPEND = "suspend"
     DONE = "done"
-    FINAL = "final"
+    TERMINATE = "terminate"
 
 
 class ConversationPrompts:
     """System prompts for different conversation roles."""
 
-    COORDINATOR_INSTRUCTIONS = """You are the Coordinator in a multi-agent system.
-
+    COORDINATOR_INSTRUCTIONS = """{additional_coordinator_context}, your current role is the Coordinator in a multi-agent system.
 Your job: Decide the next single step using the FULL conversation history (all messages), and route control to exactly ONE option from the **AVAILABLE AGENTS** or to finalize.
+**SYSTEM STATE**:
+- Current Time (UTC): {current_time}
 
 CONTEXT AWARENESS:
 - Read the entire chat and tool results, not just the latest message.
@@ -84,10 +86,13 @@ CONTEXT AWARENESS:
 AVAILABLE AGENTS:
 {plugin_descriptions}
 - **finalize**: Use when any of the following is true:
-  - The answer for the current user query is ready (e.g., simple questions, greetings).
-  - No suitable agent is needed or available for the next step.
-  - The most recent agent response indicates the user must provide additional information (clarification, missing inputs, choice selection). In this case, finalize so the system can ask the user clearly for the missing details.
-
+ - Simple questions: like greeting, goodbye, etc
+ - Re-translate answer to other languages
+ - Unclear, need clarification questions
+ - The answer for the current user query is ready (e.g., simple questions, greetings).
+ - No suitable agent is needed or available for the next step.
+ - The most recent agent response indicates the user must provide additional information (clarification, missing inputs, choice selection). In this case, finalize so the system can ask the user clearly for the missing details.
+    
 **STRICT RULES**:
 - Choose only one route.
 - Do not invent new tools or agents.
@@ -97,7 +102,7 @@ AVAILABLE AGENTS:
 DECISION OUTPUT (choose EXACTLY ONE):
 - {tool_options} | goto_finalize"""
 
-    HOP_LIMIT_REACHED = """You have reached maximum agent call ({current}/{maximum}) allowed by the system.
+    HOP_LIMIT_REACHED = """{additional_suspend_context}, your current role is The Friendly Suspender. Current situation is we have reached maximum agent call ({current}/{maximum}) allowed by the system.
 **What this means:**
 - The system cannot process any more agent switches
 - You must provide a final answer based on the information gathered so far
@@ -110,18 +115,25 @@ DECISION OUTPUT (choose EXACTLY ONE):
 4. If the answer is incomplete, explain why and suggest the user continue the chat
 
 **IMPORTANT**, never makeup the answer if provided information by agents not enough
+
+**SYSTEM STATE**:
+- Current Time (UTC): {current_time}
+
 **RESPONSE STYLE**: {tone_instruction}
 **LANGUAGE**: Respond in the same language as the user's query or as explicitly requested by the user.
 Please provide a helpful response that addresses the user's query while explaining the hop limit situation."""
 
-    FINALIZER_INSTRUCTIONS = """You are the Finalizer, responsible for creating the final response for a multi-agent conversation.
+    FINALIZER_INSTRUCTIONS = """{additional_finalizer_context}, your current role is The Friendly Suspender. Your current role is the Finalizer, responsible for creating the final response for a multi-agent conversation.
 CRITICAL REQUIREMENTS:
-1. **RESPECT AGENT RESPONSES** - Use ONLY the information provided by agents and tools, do NOT make up or add information
+1. **RESPECT AGENT RESPONSES** - Use ONLY the information provided by agents and tools, NEVER make up or add information. Explain errors from agents to user by a friendly way.
 2. **ADDRESS CURRENT USER QUERY** - Focus on answering the recent user question, use previous conversation as context
 3. **SYNTHESIZE RELEVANT WORK** - Connect and organize the work done by work done in each step for answer
 4. **BE HELPFUL** - Provide useful, actionable information that directly answers the user's question
 5. **RESPONSE STYLE**: {tone_instruction}
-6. **LANGUAGE**: Respond in the same language as the user's query or as explicitly requested by the user.
+6. **LANGUAGE**: Respond in the same language as the current user's query or as explicitly requested by the user.
+
+**SYSTEM STATE**:
+- Current Time (UTC): {current_time}
 
 IMPORTANT: Your role is to synthesize and present the information that agents have gathered, not to generate new information or make assumptions beyond what's provided in the conversation."""
 
@@ -294,6 +306,7 @@ class MultiAgentOrchestrator(Loggable):
                 RoutingDecision.CONTINUE: GraphNodeNames.CONTROL_TOOLS,
                 RoutingDecision.DONE: GraphNodeNames.FINALIZER,
                 RoutingDecision.SUSPEND: GraphNodeNames.SUSPEND,
+                RoutingDecision.TERMINATE: END,
             },
         )
         graph.add_edge(GraphNodeNames.SUSPEND, END)
@@ -336,8 +349,11 @@ class MultiAgentOrchestrator(Loggable):
         elif self._has_tool_calls(state):
             self.logger.debug("Routing to CONTINUE due to tool calls present")
             return RoutingDecision.CONTINUE
+        elif self.settings.allowed_coordinator_terminate:
+            self.logger.debug("Routing to TERMINATE - coordinator allowed to terminate directly")
+            return RoutingDecision.TERMINATE
         else:
-            self.logger.debug("Routing to DONE - no tool calls and hop limit not reached")
+            self.logger.debug("Routing to DONE - no tool calls, routing through finalizer")
             return RoutingDecision.DONE
 
     def _is_hop_limit_reached(self, state: AgentState) -> bool:
@@ -422,7 +438,10 @@ class MultiAgentOrchestrator(Loggable):
         tool_options = self._build_tool_options()
 
         coordinator_prompt = ConversationPrompts.COORDINATOR_INSTRUCTIONS.format(
-            plugin_descriptions=plugin_descriptions, tool_options=tool_options
+            plugin_descriptions=plugin_descriptions,
+            tool_options=tool_options,
+            current_time=datetime.now(timezone.utc).isoformat(),
+            additional_coordinator_context=self.settings.additional_coordinator_context,
         )
 
         request_messages = [SystemMessage(content=coordinator_prompt)] + messages
@@ -438,9 +457,12 @@ class MultiAgentOrchestrator(Loggable):
                 current_agent_hops = self.calculate_agent_hops(current_agent_hops, tool_calls)
                 plugin_context = self._update_same_agent_route_counter(plugin_context, tool_calls)
         else:
-            coordinator_response.content = ""
-            coordinator_response.tool_calls = [ToolCall(id=str(uuid.uuid4()), name="goto_finalize", args={})]
-            plugin_context = self._reset_route_counters(plugin_context)
+            if self.settings.allowed_coordinator_terminate:
+                plugin_context = self._reset_route_counters(plugin_context)
+            else:
+                coordinator_response.content = ""
+                coordinator_response.tool_calls = [ToolCall(id=str(uuid.uuid4()), name="goto_finalize", args={})]
+                plugin_context = self._reset_route_counters(plugin_context)
         updated_state = dict(state)
         updated_state["plugin_context"] = plugin_context
         return self._create_state_update(coordinator_response, current_agent_hops, updated_state)
@@ -499,7 +521,11 @@ class MultiAgentOrchestrator(Loggable):
 
         suspension_message = SystemMessage(
             content=ConversationPrompts.HOP_LIMIT_REACHED.format(
-                current=current_hops, maximum=max_hops, tone_instruction=tone_instruction
+                current=current_hops,
+                maximum=max_hops,
+                tone_instruction=tone_instruction,
+                current_time=datetime.now(timezone.utc).isoformat(),
+                additional_suspend_context=self.settings.additional_suspend_context,
             )
         )
 
@@ -512,9 +538,10 @@ class MultiAgentOrchestrator(Loggable):
         messages = state.get("messages", [])
         requested_tone = state.get("tone", "natural") or "natural"
         tone_instruction = self._get_tone_instruction(requested_tone)
-
         finalization_prompt_content = ConversationPrompts.FINALIZER_INSTRUCTIONS.format(
-            tone_instruction=tone_instruction
+            tone_instruction=tone_instruction,
+            current_time=datetime.now(timezone.utc).isoformat(),
+            additional_finalizer_context=self.settings.additional_finalizer_context,
         )
         finalization_prompt = SystemMessage(content=finalization_prompt_content)
         final_response = self.finalizer_model.invoke([finalization_prompt] + messages)
@@ -530,7 +557,9 @@ class MultiAgentOrchestrator(Loggable):
         """Build formatted string of available plugin descriptions."""
         descriptions = []
         for plugin_bundle in self.plugin_manager.plugin_bundles.values():
-            descriptions.append(f"- **{plugin_bundle.metadata.name}**: {plugin_bundle.metadata.description}")
+            descriptions.append(
+                f"- **{plugin_bundle.metadata.name}**: {plugin_bundle.metadata.description}. No params are required."
+            )
         return "\n".join(descriptions)
 
     def _build_tool_options(self) -> str:

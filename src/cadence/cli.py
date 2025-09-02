@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Optional
 
 import click
+from dotenv import load_dotenv
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -21,7 +22,7 @@ console = Console()
 
 
 @click.group()
-@click.version_option(version="1.0.5", prog_name="cadence")
+@click.version_option(version="1.0.7", prog_name="cadence")
 @click.option("--debug", is_flag=True, help="Enable debug mode")
 @click.option("--config", type=click.Path(exists=True), help="Path to configuration file")
 @click.pass_context
@@ -331,6 +332,7 @@ def health(ctx):
 
 
 if __name__ == "__main__":
+    load_dotenv()
     cli()
 
 

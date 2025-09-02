@@ -6,19 +6,19 @@ and automatic failover capabilities.
 """
 
 import logging
+import os
 from contextlib import asynccontextmanager
 from typing import Any, AsyncGenerator, Dict, Optional
 
 import redis.asyncio as redis
+from cadence_sdk.base.loggable import Loggable
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import QueuePool
 
 from ...config.settings import Settings
 
-logger = logging.getLogger(__name__)
 
-
-class DatabaseConnectionManager:
+class DatabaseConnectionManager(Loggable):
     """Multi-backend database connection manager with health monitoring and pooling.
 
     This class orchestrates connections to multiple database backends, providing
@@ -35,7 +35,7 @@ class DatabaseConnectionManager:
     async def initialize_postgresql(self) -> None:
         """Initialize PostgreSQL connection with async SQLAlchemy."""
         if not self.settings.postgres_url:
-            logger.warning("No PostgreSQL URL configured, skipping PostgreSQL initialization")
+            self.logger.warning("No PostgreSQL URL configured, skipping PostgreSQL initialization")
             return
 
         try:
@@ -56,16 +56,16 @@ class DatabaseConnectionManager:
             async with self.postgres_session_factory() as session:
                 await session.execute("SELECT 1")
 
-            logger.info("✅ PostgreSQL connection initialized successfully")
+            self.logger.info("✅ PostgreSQL connection initialized successfully")
 
         except Exception as e:
-            logger.error(f"❌ Failed to initialize PostgreSQL: {e}")
+            self.logger.error(f"❌ Failed to initialize PostgreSQL: {e}")
             raise
 
     async def initialize_redis(self) -> None:
         """Initialize Redis connection for session storage and caching."""
         if not self.settings.redis_url:
-            logger.warning("No Redis URL configured, skipping Redis initialization")
+            self.logger.warning("No Redis URL configured, skipping Redis initialization")
             return
 
         try:
@@ -81,10 +81,10 @@ class DatabaseConnectionManager:
 
             await self.redis_client.ping()
 
-            logger.info("Redis connection initialized successfully")
+            self.logger.info("Redis connection initialized successfully")
 
         except Exception as e:
-            logger.error(f"Failed to initialize Redis: {e}")
+            self.logger.error(f"Failed to initialize Redis: {e}")
             raise
 
     @asynccontextmanager
@@ -113,14 +113,14 @@ class DatabaseConnectionManager:
         try:
             if self.postgres_engine:
                 await self.postgres_engine.dispose()
-                logger.info("PostgreSQL connection closed")
+                self.logger.info("PostgreSQL connection closed")
 
             if self.redis_client:
                 await self.redis_client.aclose()
-                logger.info("Redis connection closed")
+                self.logger.info("Redis connection closed")
 
         except Exception as e:
-            logger.error(f"Error closing database connections: {e}")
+            self.logger.error(f"Error closing database connections: {e}")
 
     async def health_check(self) -> Dict[str, Any]:
         """Perform health check on all database connections."""
@@ -150,6 +150,10 @@ class DatabaseConnectionManager:
 
 
 connection_manager: Optional[DatabaseConnectionManager] = None
+
+logger = logging.getLogger(__name__)
+if bool(os.environ.get("CADENCE_DEBUG", False)):
+    logger.setLevel(logging.DEBUG)
 
 
 async def initialize_databases(settings: Settings) -> DatabaseConnectionManager:

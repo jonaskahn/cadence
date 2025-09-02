@@ -10,6 +10,7 @@ from contextlib import asynccontextmanager
 from typing import Optional
 
 import uvicorn
+from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -103,7 +104,7 @@ class CadenceApplication:
         self.app = FastAPI(
             title="Cadence 🤖 Multi-agents AI Framework",
             description="A plugin-based multi-agent conversational AI framework",
-            version="1.0.5",
+            version="1.0.7",
             lifespan=lifespan,
         )
 
@@ -123,11 +124,11 @@ class CadenceApplication:
 
         @self.app.get("/health")
         async def health_check():
-            return {"status": "healthy", "message": "Cadence 🤖 Multi-agents AI Framework", "version": "1.0.5"}
+            return {"status": "healthy", "message": "Cadence 🤖 Multi-agents AI Framework", "version": "1.0.7"}
 
         @self.app.get("/")
         async def root():
-            return {"message": "Welcome to Cadence 🤖 Multi-agents AI Framework", "version": "1.0.5", "docs": "/docs"}
+            return {"message": "Welcome to Cadence 🤖 Multi-agents AI Framework", "version": "1.0.7", "docs": "/docs"}
 
         return self.app
 
@@ -157,5 +158,6 @@ def get_app() -> FastAPI:
 
 
 if __name__ == "__main__":
+    load_dotenv()
     cadence_application = CadenceApplication()
     cadence_application.run()
