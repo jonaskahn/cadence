@@ -48,7 +48,8 @@ dependencies = [
     "greenlet>=3.2.4,<4.0.0",
     "langchain-google-genai>=2.1.9,<2.2.0",
     "rich>=14.1.0,<15.0.0",
-    "cadence-sdk (>=1.0.1,<2.0.0)"
+    "cadence-sdk (>=1.0.1,<2.0.0)",
+    "python-multipart (>=0.0.20,<0.0.21)"
 ]
 
 [project.urls]
@@ -75,6 +76,13 @@ dev = [
 
 [tool.poetry]
 packages = [{ include = "cadence", from = "src" }]
+
+# FOR LOCAL DEVELOPMENT
+[tool.poetry.group.local]
+optional = true
+
+[tool.poetry.group.local.dependencies]
+cadence_sdk = {path = "./sdk", develop = true}
 
 [tool.poetry.group.docs]
 optional = true

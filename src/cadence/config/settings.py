@@ -38,6 +38,8 @@ class Settings(BaseSettings):
     plugins_dir: List[str] = Field(
         default=["./plugins/src/cadence_example_plugins"], description="Directories to search for plugins"
     )
+    store_plugin: str = Field(default="./store_plugin", description="Directory to store uploaded plugins")
+    store_archived: str = Field(default="./store_archived", description="Directory to store uploaded plugin archives")
     enable_directory_plugins: bool = Field(default=True, description="Enable directory-based plugin discovery")
 
     postgres_url: Optional[str] = Field(
@@ -51,6 +53,10 @@ class Settings(BaseSettings):
     conversation_storage_backend: str = Field(default="memory", description="Conversation storage backend")
     max_agent_hops: int = Field(default=25, description="Maximum agent hops per conversation")
     graph_recursion_limit: int = Field(default=50, description="Maximum graph recursion depth")
+    coordinator_consecutive_agent_route_limit: int = Field(
+        default=5,
+        description="Max consecutive coordinator routes to agents (excluding finalize) before suspend",
+    )
 
     session_timeout: int = Field(default=3600, description="Session timeout in seconds")
     max_session_history: int = Field(default=100, description="Maximum conversation history per session")

@@ -49,6 +49,15 @@ Plugin bundles define their own routing logic through a standardized interface.
 - **No More Loops**: Eliminated the `tools → agent` edge that caused infinite loops
 - **Standardized Interface**: All plugins follow the same edge configuration pattern
 
+## Plugin Context and Coordinator Guardrails
+
+Plugins participate in a coordinated flow where the orchestrator tracks lightweight routing context to improve safety:
+
+- `plugin_context.same_agent_consecutive_routes`: consecutive route counter for the same agent
+- `plugin_context.last_routed_agent`: last agent chosen by the coordinator
+
+The coordinator uses this context to enforce a consecutive same-agent routing limit (`coordinator_consecutive_agent_route_limit`). Once reached, execution is routed to the `suspend` node to prevent unproductive loops. The counters reset when the coordinator selects a different agent or decides to `goto_finalize`.
+
 ## Configuration
 
 - Plugins directory: `CADENCE_PLUGINS_DIR` (single path or JSON list)

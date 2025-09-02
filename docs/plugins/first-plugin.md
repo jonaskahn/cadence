@@ -132,3 +132,7 @@ curl -X POST http://127.0.0.1:8000/api/v1/chat \
 - Keep `create_agent()` static
 - Keep tools simple and well documented
 - Add `health_check()` if your plugin uses external services
+
+---
+
+Looking to distribute your plugin without file system access? See **[Plugin Upload Feature](upload-feature.md)** to package as `name-version.zip` and install via UI/API.

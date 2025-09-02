@@ -95,3 +95,18 @@ class CadenceApiClient:
     def reload_plugins(self) -> Dict[str, Any]:
         """Reload all plugins and return result."""
         return self._make_request("POST", "/api/v1/plugins/plugins/reload")
+
+    def upload_plugin(self, file_path: str, force_overwrite: bool = False) -> Dict[str, Any]:
+        """Upload a plugin file."""
+        with open(file_path, "rb") as f:
+            files = {"file": (file_path.split("/")[-1], f, "application/zip")}
+            data = {"force_overwrite": force_overwrite}
+            return self._make_request("POST", "/api/v1/plugins/plugins/upload", files=files, data=data)
+
+    def list_uploaded_plugins(self) -> Dict[str, Any]:
+        """List all uploaded plugins."""
+        return self._make_request("GET", "/api/v1/plugins/plugins/uploaded")
+
+    def delete_uploaded_plugin(self, plugin_name: str, plugin_version: str) -> Dict[str, Any]:
+        """Delete an uploaded plugin."""
+        return self._make_request("DELETE", f"/api/v1/plugins/plugins/uploaded/{plugin_name}/{plugin_version}")

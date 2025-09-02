@@ -326,6 +326,7 @@ math_tools = [add, multiply]
 Ready to build your first plugin? Continue with:
 
 - **[Creating Your First Plugin](first-plugin.md)** - Step-by-step tutorial
+- **[Plugin Upload Feature](upload-feature.md)** - Upload, manage, and reload plugins via UI/API
 - Explore the code of existing plugins for deeper patterns
 
 ## Examples

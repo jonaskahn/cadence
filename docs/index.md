@@ -5,9 +5,10 @@ deployment of AI agent workflows.
 
 - **Quick Start**: [Get up and running](getting-started/quick-start.md)
 - **Core Concepts**:
-    - [Understand the architecture](concepts/architecture.md)
-    - [LangGraph Architecture](concepts/langgraph-architecture.md)
+  - [Understand the architecture](concepts/architecture.md)
+  - [LangGraph Architecture](concepts/langgraph-architecture.md)
 - **Plugin Development**: [Build custom agents](plugins/overview.md)
+- **Plugin Upload**: [Upload and manage plugins](plugins/upload-feature.md)
 - **Deployment**: [Configure environments](deployment/environment.md)
 
 ---

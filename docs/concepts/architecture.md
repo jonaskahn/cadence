@@ -79,6 +79,12 @@ flowchart TD
     Coord --> Safety
     Safety --> State
 
+    %% Guardrails
+    Coord -->|consecutive same-agent limit| Suspend
+    subgraph Limits
+        Suspend["Suspend Node (guardrails)"]
+    end
+
     API --> Obs
     Coord --> Obs
 ```
@@ -136,12 +142,12 @@ Manages connections to various language models:
 Cadence aggregates plugins from two sources at startup:
 
 - Pip-installed packages (environment packages)
-    - Discovered via the SDK registry when packages that depend on `cadence_sdk` are present
-    - Import of the package triggers `register_plugin(...)`
-    - No extra configuration needed beyond having the package installed
+  - Discovered via the SDK registry when packages that depend on `cadence_sdk` are present
+  - Import of the package triggers `register_plugin(...)`
+  - No extra configuration needed beyond having the package installed
 
 - Directory-based packages (filesystem)
-    - Controlled via environment variable `CADENCE_PLUGINS_DIR`
+  - Controlled via environment variable `CADENCE_PLUGINS_DIR`
 
 ```bash
 # Single directory

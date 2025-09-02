@@ -263,6 +263,9 @@ class SDKPluginManager(Loggable):
         self.load_pip_plugins()
         self.load_plugin_packages()
 
+        # Also load from uploaded plugins directory
+        self._load_uploaded_plugins()
+
         contracts = discover_plugins()
         self.logger.debug(f"Discovered {len(contracts)} SDK-registered plugins")
 
@@ -272,6 +275,21 @@ class SDKPluginManager(Loggable):
             except Exception as e:
                 self.logger.error(f"Failed to create bundle for {contract.name}: {e}")
                 self.failed_plugins.add(contract.name)
+
+    def _load_uploaded_plugins(self) -> None:
+        """Load plugins from the uploaded plugins directory."""
+        try:
+            from ...config.settings import settings
+
+            store_plugin_dir = Path(settings.store_plugin)
+
+            if store_plugin_dir.exists():
+                # Add uploaded plugins directory to discovery
+                if str(store_plugin_dir) not in [str(p) for p in self.plugins_dirs]:
+                    self.plugins_dirs.append(store_plugin_dir)
+                    self.logger.debug(f"Added uploaded plugins directory: {store_plugin_dir}")
+        except Exception as e:
+            self.logger.warning(f"Failed to load uploaded plugins: {e}")
 
     def _create_plugin_bundle(self, contract: BasePlugin) -> bool:
         """Create a plugin bundle from an SDK contract."""
@@ -470,7 +488,7 @@ class SDKPluginManager(Loggable):
         for plugin_name in self.get_available_plugins():
             bundle = self.plugin_bundles.get(plugin_name)
             capabilities = ", ".join(bundle.metadata.capabilities) if bundle else ""
-            desc = f"Route to the '{plugin_name}' agent." + (f" Capabilities: {capabilities}" if capabilities else "")
+            desc = f"**{plugin_name}** agent." + (f" Capabilities only for: {capabilities}" if capabilities else "")
             control_tools.append(_make_goto_tool(plugin_name, desc))
 
         def goto_finalize() -> str:

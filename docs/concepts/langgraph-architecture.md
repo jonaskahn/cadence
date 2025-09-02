@@ -276,6 +276,32 @@ The hop counting system ensures that only actual agent calls increment the hop c
 - **Agent Call Tracking**: Only actual agent routing calls increment the counter
 - **Accurate Limits**: Prevents premature hop limit triggering
 
+## Coordinator Guardrails and Routing Limits
+
+### Consecutive Same-Agent Route Guard
+
+The coordinator implements a guard to prevent repeatedly routing to the same agent too many times in a row.
+
+- Purpose: avoid unproductive loops where the coordinator keeps handing control to the same agent without progress
+- Trigger: when the same agent is selected consecutively beyond a configurable limit
+- Behavior: routes to the `suspend` node instead of continuing
+- Configuration: `coordinator_consecutive_agent_route_limit` (env: `CADENCE_COORDINATOR_CONSECUTIVE_AGENT_ROUTE_LIMIT`)
+
+State tracking is maintained in `plugin_context`:
+
+- `plugin_context.same_agent_consecutive_routes`: running count of consecutive routes to the same agent
+- `plugin_context.last_routed_agent`: last selected agent name
+- Reset conditions: any `goto_finalize` decision or a change in selected agent
+
+### Coordinator Prompt Contract (Strict Rules)
+
+The coordinator prompt enforces strict constraints to keep routing decisions predictable:
+
+- Choose exactly one route from available tools or finalize
+- Do not invent agents/tools, and do not perform tool work directly
+- Use the full conversation history; avoid redundant work if results already exist
+- Prefer continuity when the last agent is still the best fit
+
 ## Complete Conversation Flow
 
 ### High-Level Flow with Enhanced Conditional Routing

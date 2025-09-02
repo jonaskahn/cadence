@@ -109,6 +109,7 @@ nav:
   - Plugin Development:
       - Overview: plugins/overview.md
       - Your First Plugin: plugins/first-plugin.md
+      - Upload Feature: plugins/upload-feature.md
   - Deployment:
       - Environment Configuration: deployment/environment.md
       - Production Setup: deployment/production.md
