@@ -208,3 +208,4 @@ __marimo__/
 .idea
 **/*.DS_STORE
 poetry.lock
+storage

@@ -3,14 +3,15 @@
 ## Overview
 
 The Cadence system uses LangGraph to orchestrate multi-agent conversations through a sophisticated workflow that
-dynamically routes between different plugin agents. This document provides a comprehensive guide to understanding how
-the graph is constructed, how nodes are added, and how edges connect to create a flexible conversation flow.
+dynamically routes between different plugin agents. This document provides a comprehensive guide to understanding the
+architectural design, how the graph is conceptually constructed, and how the conversation flow is designed to be
+flexible and extensible.
 
 ## Table of Contents
 
 - [Architecture Layers](#architecture-layers)
-- [Graph Construction Process](#graph-construction-process)
-- [Decision Logic and Routing](#decision-logic-and-routing)
+- [Graph Construction Design](#graph-construction-design)
+- [Enhanced Decision Logic and Routing](#enhanced-decision-logic-and-routing)
 - [Response Tone Control](#response-tone-control)
 - [Tool Execution Logging](#tool-execution-logging)
 - [Complete Conversation Flow](#complete-conversation-flow)
@@ -51,26 +52,20 @@ graph TB
     end
 ```
 
-## Graph Construction Process
+## Graph Construction Design
 
-The graph construction follows a systematic 6-phase approach that ensures proper setup and integration of all
+The graph construction follows a systematic 6-phase design approach that ensures proper setup and integration of all
 components.
 
 ### Phase 1: Graph Initialization
 
-The process begins with creating a new `StateGraph` instance:
+The process begins with creating a new state graph instance that will manage the conversation flow.
 
-```python
-def _build_conversation_graph(self) -> StateGraph:
-    graph = StateGraph(AgentState)  # Initialize with state schema
-    # ... build process continues
-```
+**Design Principles:**
 
-**What happens:**
-
-- Creates a new `StateGraph` instance
-- Associates it with the `AgentState` schema for type safety
-- Prepares the graph for node and edge additions
+- Creates a new state graph instance with conversation state schema
+- Associates it with the agent state schema for type safety
+- Prepares the graph for dynamic node and edge additions
 
 ### Phase 2: Core Node Registration
 
@@ -85,19 +80,16 @@ graph LR
     end
     
     A --> E[Entry Point]
-    C --> D
-    D --> F[DONE]
+    C --> F[END]
+    D --> F
 ```
 
-**Implementation:**
+**Core Node Design:**
 
-```python
-def _add_core_orchestration_nodes(self, graph: StateGraph) -> None:
-    graph.add_node(GraphNodeNames.COORDINATOR, self._coordinator_node)
-    graph.add_node(GraphNodeNames.CONTROL_TOOLS, ToolNode(tools=self.plugin_manager.get_coordinator_tools()))
-    graph.add_node(GraphNodeNames.SUSPEND, self._suspend_node)
-    graph.add_node(GraphNodeNames.FINALIZER, self._finalizer_node)
-```
+- **Coordinator Node**: Main decision-making hub that analyzes user queries and routes to appropriate agents
+- **Control Tools Node**: Manages routing tools that direct conversation flow to specific plugin agents
+- **Suspend Node**: Handles graceful termination when hop limits are exceeded
+- **Finalizer Node**: Synthesizes conversation results into coherent final responses
 
 ### Phase 3: Plugin Node Integration
 
@@ -119,21 +111,17 @@ graph TB
     end
 ```
 
-**Implementation:**
+**Plugin Integration Design:**
 
-```python
-def _add_dynamic_plugin_nodes(self, graph: StateGraph) -> None:
-    """Dynamically adds plugin nodes and their connections to the graph."""
-    for plugin_bundle in self.plugin_manager.plugin_bundles.values():
-        plugin_name = plugin_bundle.metadata.name
+- **Dynamic Discovery**: Plugin manager discovers available plugin bundles
+- **Node Extraction**: Each plugin bundle provides agent and tool nodes
+- **Graph Integration**: Nodes are dynamically added to the conversation graph
+- **Edge Configuration**: Plugin bundles define their own routing logic
 
-        graph.add_node(f"{plugin_name}_agent", plugin_bundle.agent_node)
-        graph.add_node(f"{plugin_name}_tools", plugin_bundle.tool_node)
-```
+### Phase 4: Enhanced Routing Edge Establishment
 
-### Phase 4: Routing Edge Establishment
-
-The routing network creates the decision tree that guides conversation flow. **This is where the new conditional routing
+The routing network creates the decision tree that guides conversation flow. **This is where the enhanced conditional
+routing
 system is implemented:**
 
 ```mermaid
@@ -153,7 +141,7 @@ graph TB
         F -->|finalize| E
     end
     
-    subgraph "Plugin Flow with Conditional Routing"
+    subgraph "Enhanced Plugin Flow with Conditional Routing"
         G --> J{should_continue}
         H --> K{should_continue}
         I --> L{should_continue}
@@ -168,64 +156,30 @@ graph TB
         P --> N
     end
     
-    D --> E
-    E --> Q[DONE]
+    D --> Q[END]
+    E --> Q
 ```
 
-**Implementation:**
+**Routing Design Principles:**
 
-```python
-def _add_conditional_routing_edges(self, graph: StateGraph) -> None:
-    """Adds conditional routing edges between graph nodes."""
-    self._add_coordinator_routing_edges(graph)
-    self._add_control_tools_routing_edges(graph)
-    self._add_plugin_routing_edges(graph)
-
-
-def _add_plugin_routing_edges(self, graph: StateGraph) -> None:
-    """Adds edges from plugin agents back to coordinator using bundle edge definitions."""
-    for plugin_bundle in self.plugin_manager.plugin_bundles.values():
-        edges = plugin_bundle.get_graph_edges()
-        
-        self.logger.debug(f"Adding edges for plugin {plugin_bundle.metadata.name}: {edges}")
-        
-        # Add conditional edges for agent routing decisions
-        for node_name, edge_config in edges["conditional_edges"].items():
-            self.logger.debug(f"Adding conditional edge: {node_name} -> {edge_config['mapping']}")
-            graph.add_conditional_edges(
-                node_name,
-                edge_config["condition"],
-                edge_config["mapping"]
-            )
-        
-        # Add direct edges for tool execution flow
-        for from_node, to_node in edges["direct_edges"]:
-            self.logger.debug(f"Adding direct edge: {from_node} -> {to_node}")
-            graph.add_edge(from_node, to_node)
-```
+- **Conditional Edges**: Agent routing decisions based on `should_continue` method
+- **Direct Edges**: Tools always route to coordinator (prevents circular routing)
+- **No Circular Routing**: Eliminated the `tools → agent` edge that caused infinite loops
+- **Dynamic Edge Creation**: Plugin bundles define their own routing logic
 
 ### Phase 5: Entry Point Configuration
 
-The graph needs a starting point:
+The graph needs a starting point for all conversations.
 
-```python
-def _build_conversation_graph(self) -> StateGraph:
-    # ... previous phases ...
+**Design Principles:**
 
-    graph.set_entry_point(GraphNodeNames.COORDINATOR)  # Set starting node
-
-    # ... continue with compilation
-```
-
-**What this means:**
-
-- Every conversation starts at the `coordinator` node
+- Every conversation starts at the coordinator node
 - The coordinator analyzes the user query and makes routing decisions
 - This creates a consistent entry point for all conversations
 
 ### Phase 6: Graph Compilation
 
-The final step compiles the graph for execution:
+The final step compiles the graph for execution.
 
 ```mermaid
 graph LR
@@ -242,119 +196,89 @@ graph LR
     end
 ```
 
-**Implementation:**
+**Compilation Design:**
 
-```python
-def _build_conversation_graph(self) -> StateGraph:
-    # ... previous phases ...
+- **Graph Compilation**: Converts the raw graph into an executable workflow
+- **Checkpointer Integration**: Optional state persistence for conversation continuity
+- **Debug Information**: Graph structure logging for development and debugging
 
-    # Compile the graph with optional checkpointer
-    compilation_options = {"checkpointer": self.checkpointer} if self.checkpointer else {}
-    compiled_graph = graph.compile(**compilation_options)
+## Enhanced Decision Logic and Conditional Routing
 
-    # Log the graph structure for debugging
-    self.logger.debug(f"Graph built with \n{compiled_graph.get_graph().draw_mermaid()}")
+### Intelligent Agent Decision Making
 
-    return compiled_graph
-```
+The enhanced system implements intelligent agent decision-making through a standardized decision method:
 
-## Decision Logic and Conditional Routing
+**Decision Logic Design:**
 
-### Enhanced Agent Decision Making
-
-The new system implements intelligent agent decision-making through the `should_continue` method:
-
-```python
-@staticmethod
-def should_continue(state: Dict[str, Any]) -> str:
-    """Decide whether to call tools or return to the coordinator."""
-    last_msg = state.get("messages", [])[-1] if state.get("messages") else None
-    if not last_msg:
-        return "back"
-
-    tool_calls = getattr(last_msg, "tool_calls", None)
-    return "continue" if tool_calls else "back"
-```
-
-**Key Logic:**
-
-- If the agent's response has `tool_calls` → returns `"continue"` (go to tools)
-- If the agent's response has NO `tool_calls` → returns `"back"` (return to coordinator)
+- If the agent's response has tool calls → routes to tools for execution
+- If the agent's response has NO tool calls → returns control to coordinator
+- This ensures consistent routing behavior across all agents
 
 ### Fake Tool Call Implementation
 
-To ensure consistent routing flow, agents now create fake tool calls when they answer directly:
+To ensure consistent routing flow, agents create fake tool calls when they answer directly.
 
-```python
-def agent_node(state):
-    """Agent node function for LangGraph integration."""
-    # ... get response from LLM ...
-    
-    tool_calls = getattr(response, "tool_calls", [])
+**Design Principles:**
 
-    if tool_calls:
-        logger.debug(f"Agent {self.metadata.name} generated {len(tool_calls)} tool calls.")
-    else:
-        # If no tool calls, create a fake "back" tool call to return to coordinator
-        # This ensures the agent always routes through the proper flow
-        logger.debug(f"Agent {self.metadata.name} answered directly, creating fake 'back' tool call")
-        response.content = ""
-        response.tool_calls = [ToolCall(
-            id=str(uuid.uuid4()),
-            name="back",
-            args={}
-        )]
-```
+- **Consistent Flow**: All agent responses follow the same routing path
+- **Explicit Intent**: Fake tool calls make routing decisions explicit
+- **No Direct Routing**: Agents never route directly to coordinator
+- **Tool Node Integration**: All responses go through the tools node for proper state management
 
 ### Plugin Bundle Edge Configuration
 
-The plugin bundles now define their own routing logic:
+The plugin bundles define their own routing logic through a standardized interface.
 
-```python
-def get_graph_edges(self) -> Dict[str, Any]:
-    """Generate LangGraph edge definitions for orchestrator routing."""
-    normalized_agent_name = str.lower(self.metadata.name).replace(" ", "_")
-    return {
-        "conditional_edges": {
-            f"{normalized_agent_name}_agent": {
-                "condition": self.agent.should_continue,
-                "mapping": {
-                    "continue": f"{normalized_agent_name}_tools",
-                    "back": "coordinator",
-                },
-            }
-        },
-        "direct_edges": [(f"{normalized_agent_name}_tools", "coordinator")],
-    }
-```
+**Edge Configuration Design:**
 
-**Key Changes:**
-
-- **Conditional Edges**: Agent routing decisions based on `should_continue` method
+- **Conditional Edges**: Agent routing decisions based on standardized decision method
 - **Direct Edges**: Tools always route to coordinator (prevents circular routing)
 - **No More Loops**: Eliminated the `tools → agent` edge that caused infinite loops
+- **Standardized Interface**: All plugins follow the same edge configuration pattern
 
 ### Back Tool Integration
 
-Each plugin bundle includes a special "back" tool for routing:
+Each plugin bundle includes a special "back" tool for routing control back to the coordinator.
 
-```python
-def __init__(self, contract: BasePlugin, agent, bound_model, tools: List[Tool]):
-    # ... other initialization ...
-    
-    @tool
-    def back() -> str:
-        """Return control back to the coordinator."""
-        return "back"
-    
-    all_tools = tools + [back]
-    self.tool_node = ToolNode(all_tools)
-    self.agent_node = agent.create_agent_node()
-```
+**Design Principles:**
+
+- **Standardized Tool**: Every plugin bundle includes a back tool
+- **Consistent Interface**: All plugins use the same back tool pattern
+- **Explicit Control**: Clear mechanism for returning control to coordinator
+
+## Enhanced Suspend Node Implementation
+
+The suspend node provides intelligent handling of hop limits with enhanced context awareness.
+
+**Key Design Enhancements:**
+
+- **Enhanced Hop Detection**: Improved hop limit detection with better state tracking
+- **Smart Hop Counting**: Only actual agent calls increment the hop counter, not finalization calls
+- **Context Preservation**: Maintains conversation context while explaining the limit situation
+- **Tone Adaptation**: Respects user's requested tone preference in the suspension message
+- **Safe Message Filtering**: Prevents validation errors by filtering incomplete tool call sequences
+
+**Enhanced Hop Limit Prompt Design:**
+
+The suspend node uses an enhanced prompt that provides better user experience:
+
+- **User-Friendly Language**: Explains limits without technical jargon
+- **Accomplishment Acknowledgment**: Explains what was accomplished based on gathered information
+- **Best Possible Answer**: Provides the best answer with available data
+- **Continuation Suggestions**: Suggests how to continue if the answer is incomplete
+- **Tone Adaptation**: Maintains the user's requested conversation tone
+
+**Enhanced Hop Counting Logic:**
+
+The hop counting system ensures that only actual agent calls increment the hop counter:
+
+- **Finalization Exclusion**: `goto_finalize` calls don't increment hop counter
+- **Agent Call Tracking**: Only actual agent routing calls increment the counter
+- **Accurate Limits**: Prevents premature hop limit triggering
 
 ## Complete Conversation Flow
 
-### High-Level Flow with Conditional Routing
+### High-Level Flow with Enhanced Conditional Routing
 
 ```mermaid
 sequenceDiagram
@@ -377,11 +301,13 @@ sequenceDiagram
         PA->>PA: Process with LLM
         
         alt Agent has tool calls
-            PA->>PT: Route to tools (continue)
+            PA->>PA: should_continue = "continue"
+            PA->>PT: Route to tools
             PT->>C: Execute tools & return to coordinator
         else Agent answers directly
             PA->>PA: Create fake "back" tool call
-            PA->>PT: Route to tools (continue)
+            PA->>PA: should_continue = "continue"
+            PA->>PT: Route to tools
             PT->>C: Execute "back" tool & return to coordinator
         end
         
@@ -390,18 +316,17 @@ sequenceDiagram
         C->>F: Finalize Response
     else Route to Suspend
         C->>S: Handle Hop Limit
-        S->>F: Graceful Termination
+        S->>O: Return Response
     end
     
-    F->>O: Generate Final Answer
     O->>U: Return Response
 ```
 
-### Detailed Node Interactions with New Routing
+### Detailed Node Interactions with Enhanced Routing
 
 ```mermaid
 graph TB
-    subgraph "Conversation Flow with Conditional Routing"
+    subgraph "Enhanced Conversation Flow with Conditional Routing"
         A[User Input] --> B[Enhanced Coordinator]
         B --> C{Decision}
         
@@ -415,7 +340,7 @@ graph TB
         G -->|info| J[info_agent]
         G -->|finalize| K
         
-        subgraph "Agent Decision Making"
+        subgraph "Enhanced Agent Decision Making"
             H --> L{should_continue}
             I --> M{should_continue}
             J --> N{should_continue}
@@ -432,23 +357,24 @@ graph TB
             R --> P
         end
         
-        E --> K
-        K --> F[DONE]
+        E --> END[END]
+        K --> END
     end
     
-    subgraph "State Management"
+    subgraph "Enhanced State Management"
         S[AgentState] --> T[agent_hops]
         S --> U[messages]
         S --> V[current_agent]
         S --> W[tone]
         S --> X[message_filtering]
         S --> Y[tool_execution_logging]
+        S --> Z[plugin_context]
     end
 ```
 
 ## Practical Examples
 
-### Example 1: Agent Answers Directly (New Flow)
+### Example 1: Agent Answers Directly (Enhanced Flow)
 
 **User Query:** "What is 2+2?"
 
@@ -468,7 +394,8 @@ sequenceDiagram
     CT->>MA: Activate math agent
     MA->>MA: Generate response "2+2=4"
     MA->>MA: Create fake "back" tool call
-    MA->>MT: Route to tools (continue)
+    MA->>MA: should_continue = "continue"
+    MA->>MT: Route to tools
     MT->>MT: Execute "back" tool
     MT->>C: Return "back" to coordinator
     C->>C: Evaluate completion
@@ -477,13 +404,15 @@ sequenceDiagram
     F->>U: "2+2=4"
 ```
 
-**Key Changes:**
+**Key Design Enhancements:**
 
-1. **Agent Decision**: Creates fake "back" tool call instead of routing directly
-2. **Consistent Flow**: Always goes through tools node before coordinator
-3. **No Circular Routing**: Tools route directly to coordinator, not back to agent
+1. **Enhanced Agent Decision**: Uses standardized decision method for routing decisions
+2. **Fake Tool Call**: Creates fake "back" tool call for consistent flow
+3. **Consistent Flow**: Always goes through tools node before coordinator
+4. **No Circular Routing**: Tools route directly to coordinator, not back to agent
+5. **Enhanced Suspend Node**: Better hop limit handling with user-friendly messages
 
-### Example 2: Agent Uses Tools (Existing Flow)
+### Example 2: Agent Uses Tools (Enhanced Flow)
 
 **User Query:** "Calculate 15 * 23"
 
@@ -502,7 +431,8 @@ sequenceDiagram
     C->>CT: goto_math_agent()
     CT->>MA: Activate math agent
     MA->>MA: Generate tool call to calculator
-    MA->>MT: Route to tools (continue)
+    MA->>MA: should_continue = "continue"
+    MA->>MT: Route to tools
     MT->>MT: Execute calculator tool
     MT->>C: Return result to coordinator
     C->>C: Evaluate completion
@@ -511,61 +441,92 @@ sequenceDiagram
     F->>U: "15 * 23 = 345"
 ```
 
-## Benefits of the New Routing System
+## Benefits of the Enhanced Routing System
 
 ### 1. **Eliminated Circular Routing**
 
 - **Before**: `agent → tools → agent → tools → ...` (infinite loop)
 - **After**: `agent → tools → coordinator` (clean, predictable flow)
 
-### 2. **Consistent State Management**
+### 2. **Enhanced State Management**
 
 - All agent responses go through the same routing path
 - State updates happen consistently through the tools node
 - Better debugging and monitoring capabilities
+- Plugin context tracking for routing history
 
 ### 3. **Clear Intent Communication**
 
 - Fake tool calls make agent routing decisions explicit
 - Easier to understand and debug conversation flow
 - More predictable system behavior
+- Enhanced logging for routing decisions
 
 ### 4. **Improved Error Handling**
 
 - Clear separation between agent decisions and tool execution
 - Better error isolation and recovery
 - Consistent error handling patterns
+- Graceful degradation when agents fail
+
+### 5. **Enhanced Plugin Integration**
+
+- Plugin bundles define their own routing logic
+- Consistent interface for all plugins
+- Better separation of concerns
+- Easier plugin development and testing
+
+### 6. **Enhanced Suspend Node**
+
+- Better hop limit detection and counting
+- User-friendly limit explanations
+- Tone-aware suspension messages
+- Safe message filtering to prevent errors
+- Improved context preservation
 
 ## Best Practices
 
-### 1. **Agent Implementation**
+### 1. **Enhanced Agent Implementation**
 
-- Always implement `should_continue` method properly
+- Always implement the standardized decision method properly
 - Use fake tool calls for direct answers
 - Clear system prompts that guide tool usage
+- Proper error handling and logging
 
-### 2. **Tool Design**
+### 2. **Enhanced Tool Design**
 
 - Tools should return meaningful results
 - Handle errors gracefully
 - Provide clear documentation
+- Include proper validation
 
-### 3. **Plugin Structure**
+### 3. **Enhanced Plugin Structure**
 
 - Follow the established plugin structure
-- Register plugins properly in `__init__.py`
+- Register plugins properly in the initialization
 - Include proper metadata and capabilities
+- Implement proper edge configuration
 
-### 4. **Testing**
+### 4. **Enhanced Testing**
 
 - Test both tool usage and direct answer scenarios
 - Verify routing behavior with different agent responses
 - Test error conditions and edge cases
+- Validate state management consistency
+
+### 5. **Enhanced Monitoring**
+
+- Monitor routing decisions and edge creation
+- Track plugin context and routing history
+- Monitor tool execution performance
+- Validate state consistency
 
 ## Conclusion
 
-The new conditional routing system in Cadence provides a robust, predictable foundation for multi-agent conversations.
-By implementing fake tool calls and proper edge routing, we've eliminated circular routing issues while maintaining the
+The enhanced conditional routing system in Cadence provides a robust, predictable foundation for multi-agent
+conversations.
+By implementing intelligent agent decision-making, fake tool calls, proper edge routing, and enhanced suspend node
+handling, we've eliminated circular routing issues while maintaining the
 flexibility and power of the multi-agent architecture.
 
 The system now ensures that:
@@ -574,6 +535,9 @@ The system now ensures that:
 - Circular routing is prevented through proper edge configuration
 - State management is predictable and debuggable
 - The conversation flow is clear and maintainable
+- Plugin integration is seamless and consistent
+- Error handling is robust and graceful
 
-This implementation makes Cadence more reliable and easier to debug while preserving all the advanced features of the
+This enhanced implementation makes Cadence more reliable, easier to debug, and more maintainable while preserving all
+the advanced features of the
 multi-agent orchestration system.

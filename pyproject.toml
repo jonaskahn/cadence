@@ -48,7 +48,7 @@ dependencies = [
     "greenlet>=3.2.4,<4.0.0",
     "langchain-google-genai>=2.1.9,<2.2.0",
     "rich>=14.1.0,<15.0.0",
-    "cadence-sdk (>=1.0.1,<2.0.0)"
+    "cadence-sdk>=1.0.5,<2.0.0"
 ]
 
 [project.urls]
