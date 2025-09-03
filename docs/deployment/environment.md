@@ -690,7 +690,7 @@ cadence $OPENAI_API_KEY | docker secret create openai-api-key -
 
 ```bash
 poetry run python -c "
-from src.cadence.config.settings import Settings
+from cadence.config.settings import Settings
 settings = Settings()
 print(f'App Name: {settings.app_name}')
 print(f'Debug: {settings.debug}')
@@ -710,8 +710,8 @@ print(f'Redis: {\"configured\" if settings.redis_url else \"not configured\"}')
 # Test PostgreSQL connection
 poetry run python -c "
 import asyncio
-from src.cadence.infrastructure.database.connection import initialize_databases
-from src.cadence.config.settings import Settings
+from cadence.infrastructure.database.connection import initialize_databases
+from cadence.config.settings import Settings
 
 async def test():
     settings = Settings(postgres_url='postgresql+asyncpg://user:pass@localhost/cadence')
