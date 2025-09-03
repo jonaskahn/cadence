@@ -7,6 +7,8 @@ framework, including starting the server, managing plugins, and administrative t
 import os
 import subprocess
 import sys
+import threading
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -16,7 +18,8 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from cadence.config.settings import Settings
+from .config.settings import Settings
+from .main import CadenceApplication
 
 console = Console()
 
@@ -59,9 +62,6 @@ def api(ctx, host: str, port: int, reload: bool, workers: int):
                 f"Starting Cadence AI API Server on {host}:{port}", title="🚀 API Server Startup", border_style="green"
             )
         )
-
-        from cadence.config.settings import Settings
-        from cadence.main import CadenceApplication
 
         settings = Settings()
         settings.api_host = host
@@ -137,22 +137,12 @@ def all(ctx, api_host: str, api_port: int, ui_port: int, reload: bool, workers: 
         os.environ["CADENCE_API_BASE_URL"] = f"http://{api_host}:{api_port}"
         if ctx.obj["debug"]:
             os.environ["CADENCE_DEBUG"] = "true"
-            reload = True
-
-        # Start API server in background
-        from cadence.config.settings import Settings
-        from cadence.main import CadenceApplication
-
         settings = Settings()
         settings.api_host = api_host
         settings.api_port = api_port
         settings.debug = ctx.obj["debug"]
 
         app = CadenceApplication(settings)
-
-        # Start API server in background thread
-        import threading
-        import time
 
         def start_api():
             try:

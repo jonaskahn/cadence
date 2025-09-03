@@ -8,8 +8,7 @@ from typing import Any, Dict, List, Optional
 
 import redis.asyncio as redis
 
-from cadence.domain.models import Conversation
-
+from .....domain.models import Conversation
 from ...repositories.conversation_repository import ConversationRepository
 
 logger = logging.getLogger(__name__)

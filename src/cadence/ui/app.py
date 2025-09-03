@@ -11,7 +11,7 @@ from typing import Any, Dict
 import streamlit as st
 from dotenv import load_dotenv
 
-from cadence.ui.client import CadenceApiClient, ChatResult, PluginInfo, SystemStatus
+from .client import CadenceApiClient, ChatResult, PluginInfo, SystemStatus
 
 
 def get_api_base_url() -> str:

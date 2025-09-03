@@ -15,8 +15,10 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from cadence.config.settings import Settings
-from cadence.core.services.service_container import ServiceContainer
+from .api.routes import router as api_router
+from .api.services import initialize_api
+from .config.settings import Settings
+from .core.services.service_container import ServiceContainer
 
 app_instance: Optional[FastAPI] = None
 
@@ -71,8 +73,6 @@ class CadenceApplication:
             self.service_container = ServiceContainer()
             await self.service_container.initialize(self.settings)
 
-            from cadence.api.services import initialize_api
-
             await initialize_api(self.settings)
 
             self.logger.info("Cadence 🤖 Multi-agents AI Framework started successfully")
@@ -117,8 +117,6 @@ class CadenceApplication:
         )
 
         self.app.add_middleware(RequestLoggingMiddleware)
-
-        from cadence.api.routes import router as api_router
 
         self.app.include_router(api_router, prefix="/api/v1")
 

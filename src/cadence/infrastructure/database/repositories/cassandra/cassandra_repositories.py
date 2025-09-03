@@ -15,10 +15,10 @@ Planned Features:
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from cadence.domain.models.conversation import Conversation
-from cadence.domain.models.thread import Thread, ThreadStatus
-from cadence.infrastructure.database.repositories.conversation_repository import ConversationRepository
-from cadence.infrastructure.database.repositories.thread_repository import ThreadRepository
+from .....domain.models.conversation import Conversation
+from .....domain.models.thread import Thread, ThreadStatus
+from ...repositories.conversation_repository import ConversationRepository
+from ...repositories.thread_repository import ThreadRepository
 
 
 class CassandraThreadRepository(ThreadRepository):

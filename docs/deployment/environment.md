@@ -686,63 +686,12 @@ cadence $OPENAI_API_KEY | docker secret create openai-api-key -
 
 ## Configuration Validation
 
-### Check Current Configuration
-
-```bash
-poetry run python -c "
-from cadence.config.settings import Settings
-settings = Settings()
-print(f'App Name: {settings.app_name}')
-print(f'Debug: {settings.debug}')
-print(f'LLM Provider: {settings.default_llm_provider}')
-print(f'Conversation Storage: {settings.conversation_storage_backend}')
-print(f'Persistence Type: {settings.persistence_type}')
-print(f'Checkpoint Layer: {settings.persistence_checkpoint_layer}')
-print(f'Memory Layer: {settings.persistence_memory_layer}')
-print(f'PostgreSQL: {\"configured\" if settings.postgres_url else \"not configured\"}')
-print(f'Redis: {\"configured\" if settings.redis_url else \"not configured\"}')
-"
-```
-
-### Test Database Connections
-
-```bash
-# Test PostgreSQL connection
-poetry run python -c "
-import asyncio
-from cadence.infrastructure.database.connection import initialize_databases
-from cadence.config.settings import Settings
-
-async def test():
-    settings = Settings(postgres_url='postgresql+asyncpg://user:pass@localhost/cadence')
-    cm = await initialize_databases(settings)
-    health = await cm.health_check()
-    print(f'PostgreSQL: {health[\"postgres\"][\"status\"]}')
-
-asyncio.run(test())
-"
-
-# Test Redis connection (persistence/Redis backend)
-poetry run python -c "
-import asyncio
-import redis.asyncio as redis
-
-async def test():
-    client = redis.from_url('redis://localhost:6379/0')
-    await client.ping()
-    print('Redis: healthy')
-    await client.aclose()
-
-asyncio.run(test())
-"
-```
-
 ### Validate Configuration on Startup
 
 Cadence validates configuration on startup:
 
 ```python
-from cadence.config.settings import Settings
+from .config.settings import Settings
 
 # This will validate all configuration
 settings = Settings()

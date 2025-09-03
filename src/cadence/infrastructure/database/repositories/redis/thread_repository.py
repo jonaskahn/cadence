@@ -7,8 +7,7 @@ from typing import Any, Dict, List, Optional
 
 import redis.asyncio as redis
 
-from cadence.domain.models import Thread, ThreadStatus
-
+from .....domain.models import Thread, ThreadStatus
 from ...repositories.thread_repository import ThreadRepository
 
 logger = logging.getLogger(__name__)

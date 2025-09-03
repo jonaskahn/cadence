@@ -12,14 +12,14 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy import and_, asc, desc, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from cadence.domain.models.conversation import Conversation
-from cadence.domain.models.thread import Thread, ThreadStatus
-from cadence.infrastructure.database.models.conversation import ConversationModel
-from cadence.infrastructure.database.models.organization import OrganizationModel
-from cadence.infrastructure.database.models.thread import ThreadModel
-from cadence.infrastructure.database.models.user import UserModel
-from cadence.infrastructure.database.repositories.conversation_repository import ConversationRepository
-from cadence.infrastructure.database.repositories.thread_repository import ThreadRepository
+from .....domain.models.conversation import Conversation
+from .....domain.models.thread import Thread, ThreadStatus
+from ...models.conversation import ConversationModel
+from ...models.organization import OrganizationModel
+from ...models.thread import ThreadModel
+from ...models.user import UserModel
+from ..conversation_repository import ConversationRepository
+from ..thread_repository import ThreadRepository
 
 logger = logging.getLogger(__name__)
 if bool(os.environ.get("CADENCE_DEBUG", False)):

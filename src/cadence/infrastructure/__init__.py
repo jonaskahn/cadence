@@ -4,8 +4,8 @@ This package provides external service integrations, data persistence, and plugi
 for the multi-agent AI system with multi-backend support.
 """
 
-from cadence.infrastructure.database import DatabaseFactory
-from cadence.infrastructure.llm import LLMModelFactory
-from cadence.infrastructure.plugins import SDKPluginManager
+from .database import DatabaseFactory
+from .llm import LLMModelFactory
+from .plugins import SDKPluginManager
 
 __all__ = ["DatabaseFactory", "LLMModelFactory", "SDKPluginManager"]

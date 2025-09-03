@@ -7,7 +7,7 @@ plugin support and multi-backend storage.
 For more information, visit: https://github.com/jonaskahn/cadence
 """
 
-from cadence.main import CadenceApplication
+from .main import CadenceApplication
 
 # Convenience import for quick access
 app = CadenceApplication()

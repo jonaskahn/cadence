@@ -6,7 +6,7 @@ This module centralizes all API endpoints by aggregating routers from different 
 
 from fastapi import APIRouter
 
-from cadence.api.routers import chat, plugins, system
+from .routers import chat, plugins, system
 
 router = APIRouter()
 
