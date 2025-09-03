@@ -5,7 +5,6 @@ Supports version gating, atomic upgrades with rollback, and archival of previous
 """
 
 import json
-import logging
 import os
 import shutil
 import zipfile
@@ -14,7 +13,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from cadence_sdk.base.loggable import Loggable
-from fastapi import HTTPException, UploadFile
+from fastapi import UploadFile
 from pydantic import BaseModel
 
 from ...config.settings import settings

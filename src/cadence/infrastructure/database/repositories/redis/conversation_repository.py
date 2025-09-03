@@ -1,8 +1,6 @@
 """Redis-based ConversationRepository implementation."""
 
 import json
-import logging
-import os
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
@@ -10,10 +8,6 @@ import redis.asyncio as redis
 
 from .....domain.models import Conversation
 from ...repositories.conversation_repository import ConversationRepository
-
-logger = logging.getLogger(__name__)
-if bool(os.environ.get("CADENCE_DEBUG", False)):
-    logger.setLevel(logging.DEBUG)
 
 
 class RedisConversationRepository(ConversationRepository):
@@ -53,6 +47,7 @@ class RedisConversationRepository(ConversationRepository):
             thread_repository: Optional thread repository for token updates
             ttl_days: TTL in days for conversation data (default: 365 days)
         """
+        super().__init__()
         self.redis = redis_client
         self.thread_repository = thread_repository
         self.ttl_seconds = ttl_days * 24 * 60 * 60
@@ -132,7 +127,7 @@ class RedisConversationRepository(ConversationRepository):
             await pipe.json().set(f"search:{conversation.id}", "$", json.dumps(search_data))
             await pipe.expire(f"search:{conversation.id}", self.ttl_seconds)
         except Exception as e:
-            logger.debug(f"Redis search not available: {e}")
+            self.logger.debug(f"Redis search not available: {e}")
 
     async def _queue_increment_counter(self, pipe) -> None:
         """Queue incrementing the global conversation counter."""
@@ -189,7 +184,7 @@ class RedisConversationRepository(ConversationRepository):
                 conversation.thread_id, conversation.user_tokens, conversation.assistant_tokens
             )
 
-        logger.debug(f"Saved conversation {conversation.id} in Redis")
+        self.logger.debug(f"Saved conversation {conversation.id} in Redis")
         return conversation
 
     async def get(self, id: str) -> Optional[Conversation]:
@@ -230,7 +225,7 @@ class RedisConversationRepository(ConversationRepository):
 
             return Conversation.from_dict(conversation_data)
         except Exception as e:
-            logger.error(f"Error deserializing conversation {id}: {e}")
+            self.logger.error(f"Error deserializing conversation {id}: {e}")
             return None
 
     async def get_conversation_history(
@@ -369,7 +364,7 @@ class RedisConversationRepository(ConversationRepository):
                     matching_conversations.append(conversation)
 
         except Exception as e:
-            logger.debug(f"Redis search not available, using fallback: {e}")
+            self.logger.debug(f"Redis search not available, using fallback: {e}")
 
             sorted_key = self._get_sorted_conversations_key("created_at")
             all_conversation_ids = await self.redis.zrevrange(sorted_key, 0, limit * 10)
@@ -504,7 +499,7 @@ class RedisConversationRepository(ConversationRepository):
 
             await pipe.execute()
 
-        logger.info(f"Deleted {deleted_count} old conversations from Redis")
+        self.logger.info(f"Deleted {deleted_count} old conversations from Redis")
         return deleted_count
 
     async def cleanup_expired_data(self, days_old: int = 30) -> int:
@@ -522,7 +517,7 @@ class RedisConversationRepository(ConversationRepository):
         sorted_key = self._get_sorted_conversations_key("created_at")
         removed = await self.redis.zremrangebyscore(sorted_key, 0, cutoff_timestamp)
 
-        logger.info(f"Cleaned up {removed} expired conversation entries")
+        self.logger.info(f"Cleaned up {removed} expired conversation entries")
         return removed
 
     async def get_redis_stats(self) -> Dict[str, Any]:
@@ -548,7 +543,7 @@ class RedisConversationRepository(ConversationRepository):
                 "ttl_seconds": self.ttl_seconds,
             }
         except Exception as e:
-            logger.error(f"Error getting Redis stats: {e}")
+            self.logger.error(f"Error getting Redis stats: {e}")
             return {"error": str(e)}
 
     async def get_storage_efficiency_estimate(self) -> Dict[str, Any]:
@@ -584,5 +579,5 @@ class RedisConversationRepository(ConversationRepository):
                 "sample_size": len(sample_ids),
             }
         except Exception as e:
-            logger.error(f"Error calculating storage efficiency: {e}")
+            self.logger.error(f"Error calculating storage efficiency: {e}")
             return {"error": str(e)}

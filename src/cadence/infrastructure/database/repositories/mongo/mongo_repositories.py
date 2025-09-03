@@ -92,6 +92,7 @@ class MongoConversationRepository(ConversationRepository):
 
     def __init__(self, db_client, thread_repository: ThreadRepository):
         """Initialize with MongoDB client and thread repository."""
+        super().__init__()
         self.db_client = db_client
         self.thread_repository = thread_repository
         raise NotImplementedError("MongoDB repositories not yet implemented")

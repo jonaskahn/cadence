@@ -4,7 +4,6 @@ Provides centralized model creation, caching, provider management, and tool bind
 with support for multiple LLM providers and intelligent optimization strategies.
 """
 
-import logging
 from typing import Dict, List, Optional
 
 from cadence_sdk.base.loggable import Loggable

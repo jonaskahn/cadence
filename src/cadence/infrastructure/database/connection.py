@@ -27,6 +27,7 @@ class DatabaseConnectionManager(Loggable):
     """
 
     def __init__(self, settings: Settings):
+        super().__init__()
         self.settings = settings
         self.postgres_engine = None
         self.postgres_session_factory = None
@@ -152,8 +153,10 @@ class DatabaseConnectionManager(Loggable):
 connection_manager: Optional[DatabaseConnectionManager] = None
 
 logger = logging.getLogger(__name__)
-if bool(os.environ.get("CADENCE_DEBUG", False)):
+if os.environ.get("CADENCE_DEBUG", "False") == "True":
     logger.setLevel(logging.DEBUG)
+else:
+    logger.setLevel(logging.INFO)
 
 
 async def initialize_databases(settings: Settings) -> DatabaseConnectionManager:

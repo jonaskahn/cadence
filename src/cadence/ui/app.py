@@ -5,13 +5,12 @@ Cadence AI multi-agent framework with focus on chat functionality.
 """
 
 import os
-import time
 from typing import Any, Dict
 
 import streamlit as st
 from dotenv import load_dotenv
 
-from .client import CadenceApiClient, ChatResult, PluginInfo, SystemStatus
+from client import CadenceApiClient, ChatResult, PluginInfo, SystemStatus
 
 
 def get_api_base_url() -> str:
@@ -540,7 +539,6 @@ def main():
         process_user_message(prompt, user_id, org_id, selected_tone)
 
     if not st.session_state.messages:
-
         st.markdown(
             f"""
         <div style="text-align: center; padding: 3rem 0; color: #666;">

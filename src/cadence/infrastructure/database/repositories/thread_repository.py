@@ -4,10 +4,12 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from cadence_sdk.base.loggable import Loggable
+
 from ....domain.models.thread import Thread, ThreadStatus
 
 
-class ThreadRepository(ABC):
+class ThreadRepository(ABC, Loggable):
     """Abstract repository interface for Thread entities."""
 
     @abstractmethod
@@ -66,6 +68,7 @@ class InMemoryThreadRepository(ThreadRepository):
     """In-memory implementation of ThreadRepository for testing and development."""
 
     def __init__(self):
+        super().__init__()
         self._threads: Dict[str, Thread] = {}
 
     async def create_thread(self, user_id: str, org_id: str) -> Thread:

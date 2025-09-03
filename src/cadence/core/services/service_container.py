@@ -4,7 +4,6 @@ Manages service lifecycle and dependency injection for the Cadence framework,
 providing centralized access to infrastructure and application services.
 """
 
-import logging
 from typing import Optional
 
 from cadence_sdk.base.loggable import Loggable

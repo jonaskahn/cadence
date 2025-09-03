@@ -31,6 +31,7 @@ class MariaDBThreadRepository(ThreadRepository):
 
     def __init__(self, db_pool):
         """Initialize with MariaDB connection pool."""
+        super().__init__()
         self.db_pool = db_pool
         raise NotImplementedError("MariaDB repositories not yet implemented")
 

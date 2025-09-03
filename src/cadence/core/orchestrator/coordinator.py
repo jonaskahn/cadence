@@ -12,7 +12,6 @@ from typing import Any, Dict, List
 
 from cadence_sdk.base.loggable import Loggable
 from cadence_sdk.types import AgentState
-from langchain_core.callbacks.base import BaseCallbackHandler
 from langchain_core.messages import AIMessage, SystemMessage, ToolCall
 from langgraph.graph import END, StateGraph
 from langgraph.prebuilt import ToolNode
@@ -138,30 +137,6 @@ CRITICAL REQUIREMENTS:
 IMPORTANT: Your role is to synthesize and present the information that agents have gathered, not to generate new information or make assumptions beyond what's provided in the conversation."""
 
 
-class ToolExecutionLogger(BaseCallbackHandler):
-    """Logs tool execution for conversation tracking."""
-
-    def __init__(self, logger, state_updater=None):
-        self.logger = logger
-        self.state_updater = state_updater
-
-    def on_tool_start(self, serialized=None, input_str=None, **kwargs):
-        """Log tool execution start."""
-        try:
-            tool_name = serialized.get("name") if isinstance(serialized, dict) else None
-            self.logger.debug(f"Tool start: name={tool_name or 'unknown'} input={input_str}")
-        except Exception as e:
-            self.logger.error(f"Error in on_tool_start: {e}")
-
-    def on_tool_end(self, output=None, **kwargs):
-        """Log tool execution completion."""
-        try:
-            output_preview = str(output)[:200] if output else None
-            self.logger.debug(f"Tool end: output={output_preview}")
-        except Exception:
-            pass
-
-
 class MultiAgentOrchestrator(Loggable):
     """Coordinates multi-agent conversations using LangGraph with dynamic plugin integration."""
 
@@ -259,7 +234,7 @@ class MultiAgentOrchestrator(Loggable):
     def rebuild_graph(self) -> None:
         """Rebuild conversation graph after plugin changes."""
         try:
-            self.logger.info("Rebuilding orchestrator graph after plugin changes...")
+            self.logger.debug("Rebuilding orchestrator graph after plugin changes...")
             self.graph = self._build_conversation_graph()
             self.logger.info("Graph rebuilt successfully")
         except Exception as e:

@@ -4,8 +4,6 @@ This module provides PostgreSQL-specific repository implementations for the Cade
 Optimized for PostgreSQL features like full-text search, JSON support, and advanced indexing.
 """
 
-import logging
-import os
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
@@ -21,15 +19,12 @@ from ...models.user import UserModel
 from ..conversation_repository import ConversationRepository
 from ..thread_repository import ThreadRepository
 
-logger = logging.getLogger(__name__)
-if bool(os.environ.get("CADENCE_DEBUG", False)):
-    logger.setLevel(logging.DEBUG)
-
 
 class PostgreSQLThreadRepository(ThreadRepository):
     """PostgreSQL implementation of ThreadRepository using SQLAlchemy."""
 
     def __init__(self, session_factory):
+        super().__init__()
         self.session_factory = session_factory
 
     async def create_thread(self, user_id: str, org_id: str) -> Thread:

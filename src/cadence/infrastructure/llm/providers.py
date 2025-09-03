@@ -13,6 +13,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
+from cadence_sdk.base.loggable import Loggable
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.tools import Tool
 
@@ -75,7 +76,7 @@ class ModelConfig:
             self.additional_params = {}
 
 
-class BaseLLMProvider(ABC):
+class BaseLLMProvider(ABC, Loggable):
     """Abstract base class for LLM providers."""
 
     @abstractmethod

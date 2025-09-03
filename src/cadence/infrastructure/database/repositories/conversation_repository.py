@@ -4,10 +4,12 @@ from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
+from cadence_sdk.base.loggable import Loggable
+
 from ....domain.models.conversation import Conversation
 
 
-class ConversationRepository(ABC):
+class ConversationRepository(ABC, Loggable):
     """Abstract repository interface for Conversation entities.
 
     Implements the optimized storage strategy:
@@ -73,6 +75,7 @@ class InMemoryConversationRepository(ConversationRepository):
     """In-memory implementation of ConversationRepository for testing and development."""
 
     def __init__(self, thread_repository=None):
+        super().__init__()
         self._conversations: Dict[str, Conversation] = {}
         self._thread_repository = thread_repository
 

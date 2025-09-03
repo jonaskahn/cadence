@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
 from ...infrastructure.plugins.sdk_manager import SDKPluginManager
-from ...infrastructure.plugins.upload_manager import PluginUploadManager, PluginUploadResult
+from ...infrastructure.plugins.upload_manager import PluginUploadManager
 from ..schemas import PluginInfo
 from ..services import global_service_container
 

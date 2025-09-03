@@ -33,6 +33,7 @@ class CassandraThreadRepository(ThreadRepository):
 
     def __init__(self, session):
         """Initialize with Cassandra session."""
+        super().__init__()
         self.session = session
         raise NotImplementedError("Cassandra repositories not yet implemented")
 

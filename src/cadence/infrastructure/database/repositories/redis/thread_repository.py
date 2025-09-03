@@ -1,7 +1,5 @@
 """Redis-based ThreadRepository implementation."""
 
-import logging
-import os
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
@@ -9,10 +7,6 @@ import redis.asyncio as redis
 
 from .....domain.models import Thread, ThreadStatus
 from ...repositories.thread_repository import ThreadRepository
-
-logger = logging.getLogger(__name__)
-if bool(os.environ.get("CADENCE_DEBUG", False)):
-    logger.setLevel(logging.DEBUG)
 
 
 class RedisThreadRepository(ThreadRepository):
@@ -125,7 +119,7 @@ class RedisThreadRepository(ThreadRepository):
             await self._queue_increment_thread_counter(pipe)
             await pipe.execute()
 
-        logger.debug(f"Created thread {thread.thread_id} in Redis")
+        self.logger.debug(f"Created thread {thread.thread_id} in Redis")
         return thread
 
     async def get_thread(self, thread_id: str) -> Optional[Thread]:
@@ -139,7 +133,7 @@ class RedisThreadRepository(ThreadRepository):
         try:
             return Thread.from_dict(thread_data)
         except Exception as e:
-            logger.error(f"Error deserializing thread {thread_id}: {e}")
+            self.logger.error(f"Error deserializing thread {thread_id}: {e}")
             return None
 
     async def update_thread(self, thread: Thread) -> Thread:
@@ -176,7 +170,7 @@ class RedisThreadRepository(ThreadRepository):
                 await self._queue_index_set_and_ttl(pipe, archived_key, thread.thread_id)
             await pipe.execute()
 
-        logger.debug(f"Updated thread {thread.thread_id} in Redis")
+        self.logger.debug(f"Updated thread {thread.thread_id} in Redis")
         return thread
 
     async def archive_thread(self, thread_id: str) -> bool:
@@ -187,7 +181,7 @@ class RedisThreadRepository(ThreadRepository):
 
         thread.archive()
         await self.update_thread(thread)
-        logger.debug(f"Archived thread {thread_id} in Redis")
+        self.logger.debug(f"Archived thread {thread_id} in Redis")
         return True
 
     async def list_threads(
@@ -330,14 +324,16 @@ class RedisThreadRepository(ThreadRepository):
             if result:
                 updated_key = self._get_sorted_threads_key("updated_at")
                 await self.redis.zadd(updated_key, {thread_id: datetime.now(timezone.utc).timestamp()})
-                logger.debug(f"Updated tokens for thread {thread_id}: +{user_tokens} input, +{assistant_tokens} output")
+                self.logger.debug(
+                    f"Updated tokens for thread {thread_id}: +{user_tokens} input, +{assistant_tokens} output"
+                )
                 return True
             else:
-                logger.warning(f"Thread {thread_id} not found for token update")
+                self.logger.warning(f"Thread {thread_id} not found for token update")
                 return False
 
         except Exception as e:
-            logger.error(f"Error updating tokens for thread {thread_id}: {e}")
+            self.logger.error(f"Error updating tokens for thread {thread_id}: {e}")
             return False
 
     async def cleanup_expired_data(self, days_old: int = 30) -> int:
@@ -358,7 +354,7 @@ class RedisThreadRepository(ThreadRepository):
         removed_created = await self.redis.zremrangebyscore(created_key, 0, cutoff_timestamp)
         removed_updated = await self.redis.zremrangebyscore(updated_key, 0, cutoff_timestamp)
 
-        logger.info(f"Cleaned up {removed_created + removed_updated} expired thread entries")
+        self.logger.info(f"Cleaned up {removed_created + removed_updated} expired thread entries")
         return removed_created + removed_updated
 
     async def get_redis_stats(self) -> Dict[str, Any]:
@@ -382,5 +378,5 @@ class RedisThreadRepository(ThreadRepository):
                 "ttl_seconds": self.ttl_seconds,
             }
         except Exception as e:
-            logger.error(f"Error getting Redis stats: {e}")
+            self.logger.error(f"Error getting Redis stats: {e}")
             return {"error": str(e)}

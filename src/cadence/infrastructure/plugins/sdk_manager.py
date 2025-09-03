@@ -100,42 +100,8 @@ class SDKPluginBundle(Loggable):
         self.tool_node = ToolNode(all_tools)
         self.agent_node = agent.create_agent_node()
 
-    def get_graph_nodes(self) -> Dict[str, Any]:
-        """Generate LangGraph nodes for orchestrator integration.
-
-        Creates standardized LangGraph node callables for this plugin bundle,
-        enabling seamless integration with Cadence's multi-agent orchestration
-        workflow.
-
-        Returns:
-            Dict mapping node names to LangGraph callable nodes
-
-        Example:
-            ```python
-            nodes = bundle.get_graph_nodes()
-            ```
-        """
-        normalized_agent_name = str.lower(self.metadata.name).replace(" ", "_")
-        return {
-            f"{normalized_agent_name}_agent": self.agent_node,
-            f"{normalized_agent_name}_tools": self.tool_node,
-        }
-
     def get_graph_edges(self) -> Dict[str, Any]:
-        """Generate LangGraph edge definitions for orchestrator routing.
-
-        Creates the edge configuration needed to integrate this plugin into
-        Cadence's LangGraph-based orchestration workflow, including conditional
-        routing logic and tool execution flow.
-
-        Returns:
-            Dict containing conditional and direct edge definitions
-
-        Example:
-            ```python
-            edges = bundle.get_graph_edges()
-            ```
-        """
+        """Generate LangGraph edge definitions for orchestrator routing"""
         normalized_agent_name = str.lower(self.metadata.name).replace(" ", "_")
         return {
             "conditional_edges": {
@@ -152,60 +118,7 @@ class SDKPluginBundle(Loggable):
 
 
 class SDKPluginManager(Loggable):
-    """Comprehensive plugin manager for Cadence's SDK-based multi-agent system.
-
-    This class provides complete plugin lifecycle management for the Cadence framework,
-    including automatic discovery, validation, loading, health monitoring, and
-    LangGraph integration of plugins developed using the Cadence SDK.
-
-    Plugin Management Capabilities:
-        Discovery and Loading:
-            - Automatic scanning of configured plugin directories
-            - Plugin contract validation using Cadence SDK specifications
-            - Dynamic loading with comprehensive error handling and reporting
-            - Dependency resolution and compatibility verification
-
-        Health Management:
-            - Continuous health monitoring of loaded plugins
-            - Automatic failure isolation to prevent system-wide issues
-            - Plugin reload capabilities for development and maintenance
-            - Detailed error reporting and debugging information
-
-        LangGraph Integration:
-            - Automatic generation of LangGraph nodes and edges
-            - Seamless integration with Cadence's orchestration workflow
-            - Tool routing and execution coordination
-            - State management compatibility with core orchestrator
-
-    Plugin Directory Structure:
-        The manager expects plugins to follow Cadence SDK conventions:
-        ```
-        plugins/
-        ├── plugin_name/
-        │   ├── __init__.py
-        │   ├── plugin.py
-        │   ├── agent.py
-        │   └── tools.py
-        ```
-
-    Example:
-        ```python
-        plugin_manager = SDKPluginManager(
-            plugins_dirs=["./plugins", "./custom_plugins"],
-            llm_factory=llm_factory
-        )
-
-        await plugin_manager.discover_and_load()
-
-        print(f"Healthy plugins: {plugin_manager.healthy_plugins}")
-        print(f"Failed plugins: {plugin_manager.failed_plugins}")
-
-        math_bundle = plugin_manager.get_plugin_bundle("math_agent")
-        if math_bundle:
-            nodes = math_bundle.get_graph_nodes()
-            edges = math_bundle.get_graph_edges()
-        ```
-    """
+    """Comprehensive plugin manager for Cadence's SDK-based multi-agent system"""
 
     def __init__(self, plugins_dirs: Union[str, List[str]], llm_factory: LLMModelFactory):
         super().__init__()
@@ -261,16 +174,16 @@ class SDKPluginManager(Loggable):
         except Exception as e:
             self.logger.error(f"Directory plugin discovery failed: {e}")
 
-    def load_enviroment_plugins(self) -> int:
+    def load_environment_plugins(self) -> int:
         """Discover and import pip-installed plugins first.
 
         Returns:
             int: Number of pip plugin packages imported
         """
         try:
-            from cadence_sdk.utils import import_plugins_from_environment as _import_env
+            from cadence_sdk.utils import import_plugins_from_environment
 
-            count = _import_env()
+            count = import_plugins_from_environment()
             self.logger.debug(f"Imported {count} pip plugin packages")
             return count
         except Exception as e:
@@ -284,18 +197,13 @@ class SDKPluginManager(Loggable):
         if a plugin with the same metadata.name exists locally, it overrides
         the version provided by a pip-installed package (last registration wins).
         """
-        # Load environment plugins first and snapshot their names as winners
-        self.load_enviroment_plugins()
+        self.load_environment_plugins()
         env_contracts_after_env_load = discover_plugins() or []
         env_plugin_names = {c.name for c in env_contracts_after_env_load}
 
-        # Then load uploaded/directory plugins
         self.load_directory_plugins()
-
         contracts = discover_plugins()
         self.logger.debug(f"Discovered {len(contracts)} SDK-registered plugins")
-
-        # Build source map after discovery based on module file paths
         try:
             from ...config.settings import settings
 
@@ -306,7 +214,6 @@ class SDKPluginManager(Loggable):
             configured_dirs = []
         self._source_map.clear()
         for contract in contracts:
-            # Priority: if a plugin name was present right after env load, mark as environment
             if contract.name in env_plugin_names:
                 src = "environment"
                 self._source_map[contract.name] = src
@@ -317,18 +224,13 @@ class SDKPluginManager(Loggable):
             try:
                 mod_path = self._get_class_module_file(contract.plugin_class)
                 if mod_path:
-                    # if: storage
                     if uploaded_root is not None:
                         try:
                             _ = mod_path.relative_to(uploaded_root)
                             src = "storage"
                         except Exception:
-                            src = None  # not storage, continue evaluation
-                    else:
-                        src = None
-
-                    # elif: directory
-                    if src is None:
+                            src = None
+                    elif src is None:
                         is_dir = False
                         for d in configured_dirs:
                             try:
@@ -422,7 +324,7 @@ class SDKPluginManager(Loggable):
             deps = list(getattr(metadata, "dependencies", []) or [])
             if deps:
                 self.logger.info(f"Installing declared dependencies for {plugin_name}: {', '.join(deps)}")
-                is_debug = os.getenv("LOG_LEVEL", "").lower() == "debug"
+                is_debug = os.environ.get("CADENCE_DEBUG", "False") == "True"
                 if _sdk_install_packages is None:
                     self.logger.warning(
                         "Dependency installer unavailable (cadence_sdk.utils.installers). Skipping runtime install;"
@@ -554,7 +456,6 @@ class SDKPluginManager(Loggable):
         control_tools: List[Tool] = []
 
         def _make_goto_tool(name: str, description: str) -> Tool:
-
             def _goto() -> str:
                 """Route control to an agent by name."""
                 return name

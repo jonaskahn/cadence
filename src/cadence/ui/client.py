@@ -31,7 +31,7 @@ class PluginInfo:
     description: str
     capabilities: List[str]
     status: str
-    source: str = "unknown"
+    source: str = "mystery"
 
 
 @dataclass
