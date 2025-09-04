@@ -7,6 +7,8 @@ and reload the entire plugin system when updates are deployed.
 
 from __future__ import annotations
 
+import logging
+import os
 from typing import List
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -16,6 +18,13 @@ from ...infrastructure.plugins.sdk_manager import SDKPluginManager
 from ...infrastructure.plugins.upload_manager import PluginUploadManager
 from ..schemas import PluginInfo
 from ..services import global_service_container
+
+logger = logging.getLogger(__name__)
+if os.environ.get("CADENCE_DEBUG", "False") == "True":
+    logger.setLevel(logging.DEBUG)
+else:
+    logger.setLevel(logging.INFO)
+
 
 plugins_api_router = APIRouter()
 
@@ -99,7 +108,7 @@ async def reload_all_plugins(plugin_manager: SDKPluginManager = Depends(get_plug
             orchestrator = global_service_container.get_orchestrator()
             orchestrator.rebuild_graph()
         except Exception as e:
-            plugins_api_router.logger.warning(f"Failed to rebuild orchestrator graph after reload: {e}")
+            logger.warning(f"Failed to rebuild orchestrator graph after reload: {e}")
         return {
             "status": "success",
             "loaded": list(plugin_manager.get_available_plugins()),
@@ -127,6 +136,11 @@ async def upload_plugin(
         result = upload_manager.upload_plugin(file, force_overwrite)
 
         if result.success:
+            try:
+                orchestrator = global_service_container.get_orchestrator()
+                orchestrator.rebuild_graph()
+            except Exception as e:
+                logger.warning(f"Failed to rebuild orchestrator graph after reload: {e}")
             return JSONResponse(
                 status_code=200,
                 content={
