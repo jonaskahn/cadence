@@ -73,6 +73,7 @@ dev = [
     "pytest-cov>=6.2.1,<7.0.0",
     "pytest-mock>=3.14.1,<4.0.0",
     "ruff>=0.12.9,<0.13.0",
+    "twine"
 ]
 
 [tool.poetry]
