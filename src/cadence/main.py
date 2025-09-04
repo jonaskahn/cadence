@@ -104,7 +104,7 @@ class CadenceApplication:
         self.app = FastAPI(
             title="Cadence 🤖 Multi-agents AI Framework",
             description="A plugin-based multi-agent conversational AI framework",
-            version="1.0.9",
+            version="1.0.10",
             lifespan=lifespan,
         )
 
@@ -122,11 +122,11 @@ class CadenceApplication:
 
         @self.app.get("/health")
         async def health_check():
-            return {"status": "healthy", "message": "Cadence 🤖 Multi-agents AI Framework", "version": "1.0.9"}
+            return {"status": "healthy", "message": "Cadence 🤖 Multi-agents AI Framework", "version": "1.0.10"}
 
         @self.app.get("/")
         async def root():
-            return {"message": "Welcome to Cadence 🤖 Multi-agents AI Framework", "version": "1.0.9", "docs": "/docs"}
+            return {"message": "Welcome to Cadence 🤖 Multi-agents AI Framework", "version": "1.0.10", "docs": "/docs"}
 
         return self.app
 
