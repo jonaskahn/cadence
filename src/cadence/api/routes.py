@@ -10,7 +10,8 @@ from .routers import chat, plugins, system
 
 router = APIRouter()
 
-router.include_router(chat.router, prefix="/chat", tags=["chat"])
+router.include_router(chat.router, prefix="/chat", tags=["chat", "obsolete"])
+router.include_router(chat.router, prefix="/conversation", tags=["chat"])
 router.include_router(plugins.router, prefix="/plugins", tags=["plugins"])
 router.include_router(system.router, prefix="/system", tags=["system"])
 
@@ -18,10 +19,10 @@ router.include_router(system.router, prefix="/system", tags=["system"])
 @router.get("/")
 async def root():
     """API root endpoint providing service information and navigation links."""
-    return {"message": "Welcome to Cadence AI Framework API", "version": "1.0.10", "docs": "/docs", "health": "/health"}
+    return {"message": "Welcome to Cadence AI Framework API", "version": "1.0.11", "docs": "/docs", "health": "/health"}
 
 
 @router.get("/health")
 async def health_check():
     """Service health check endpoint for monitoring and load balancer health verification."""
-    return {"status": "healthy", "service": "cadence-api", "version": "1.0.10"}
+    return {"status": "healthy", "service": "cadence-api", "version": "1.0.11"}

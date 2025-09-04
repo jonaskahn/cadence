@@ -247,7 +247,11 @@ class MultiAgentOrchestrator(Loggable):
     def rebuild_graph(self) -> None:
         """Rebuild conversation graph after plugin changes."""
         try:
-            self.logger.debug("Rebuilding orchestrator graph after plugin changes...")
+            self.logger.debug("Rebuilding orchestrator graph after plugins change/reload ...")
+            self.coordinator_model = self._create_coordinator_model()
+            self.suspend_model = self._create_suspend_model()
+            self.finalizer_model = self._create_finalizer_model()
+            self.graph = self._build_conversation_graph()
             self.graph = self._build_conversation_graph()
             self.logger.info("Graph rebuilt successfully")
         except Exception as e:
