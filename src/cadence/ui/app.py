@@ -8,9 +8,8 @@ import os
 from typing import Any, Dict
 
 import streamlit as st
-from dotenv import load_dotenv
-
 from client import CadenceApiClient, ChatResult, PluginInfo, SystemStatus
+from dotenv import load_dotenv
 
 
 def get_api_base_url() -> str:

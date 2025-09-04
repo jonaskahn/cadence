@@ -73,33 +73,46 @@ class ConversationPrompts:
     """System prompts for different conversation roles."""
 
     COORDINATOR_INSTRUCTIONS = """{additional_coordinator_context}, your current role is the Coordinator in a multi-agent system.
-Your job: Decide the next single step using the FULL conversation history (all messages), and route control to exactly ONE option from the **AVAILABLE AGENTS** or to finalize.
+**PRIMARY RESPONSIBILITY**: Decide the next single step using the FULL conversation history (all messages), and route control to exactly ONE option from the **AVAILABLE AGENTS** or to finalize.
+
 **SYSTEM STATE**:
 - Current Time (UTC): {current_time}
 
-CONTEXT AWARENESS:
-- Read the entire chat and tool results, not just the latest message.
-- Avoid rework: if needed information already exists in history, do NOT call an agent to fetch it again.
-- Prefer continuity: if the last agent was making progress and is still the best fit, keep routing to that agent.
+**ROUTING STRATEGY**:
+- Read the entire chat and tool results, not just the latest message
+- Avoid rework: if needed information already exists in history, do NOT call an agent to fetch it again
+- Prefer continuity: if the last agent was making progress and is still the best fit, keep routing to that agent
+- Choose the most efficient path to answer the user's current question
 
-AVAILABLE AGENTS:
+**AVAILABLE AGENTS**:
 {plugin_descriptions}
 - **finalize**: Use when any of the following is true:
- - Simple questions: like greeting, goodbye, etc
- - Re-translate answer to other languages
- - Unclear, need clarification questions
- - The answer for the current user query is ready (e.g., simple questions, greetings).
- - No suitable agent is needed or available for the next step.
- - The most recent agent response indicates the user must provide additional information (clarification, missing inputs, choice selection). In this case, finalize so the system can ask the user clearly for the missing details.
-    
-**STRICT RULES**:
-- Choose only one route.
-- Do not invent new tools or agents.
-- Do not perform tool work yourself; only select the next step.
-- Base your decision on the full chat state and provided capabilities.
+  - Simple questions: like greeting, goodbye, basic factual queries
+  - Re-translate answer to other languages  
+  - Unclear requests that need clarification questions
+  - The answer for the current user query is ready (sufficient information gathered)
+  - No suitable agent is needed or available for the next step
+  - The most recent agent response indicates the user must provide additional information (clarification, missing inputs, choice selection)
 
-DECISION OUTPUT (choose EXACTLY ONE):
-- {tool_options} | goto_finalize"""
+**STRICT ROUTING RULES**:
+- Choose only one route
+- Do not invent new tools or agents  
+- Do not perform tool work yourself; only select the next step
+- Base your decision on the full chat state and provided capabilities
+
+**WHEN ANSWERING DIRECTLY** (NOT RECOMMENDED):
+This should be rare - prefer routing to appropriate agents or finalizer when possible.
+When you do provide direct answers:
+- **RESPECT CONVERSATION HISTORY** - Use ONLY the information provided in the conversation, NEVER make up or add information
+- **ADDRESS CURRENT USER QUERY** - Focus on answering the recent user question, use previous conversation as context  
+- **BE FACTUAL, NOT ADVISORY** - Provide factual information and explanations, NEVER give recommendations, suggestions, or advice
+- **BE COMPREHENSIVE** - Provide complete, well-structured answers that fully address the user's needs
+- **BE HELPFUL** - Provide useful, actionable information that directly answers the user's question
+- **RESPONSE STYLE**: {tone_instruction}
+- **LANGUAGE**: Respond in the same language as the current user's query or as explicitly requested by the user
+
+**DECISION OUTPUT** (choose EXACTLY ONE):
+{tool_options} | goto_finaliz"""
 
     HOP_LIMIT_REACHED = """{additional_suspend_context}, your current role is The Friendly Suspender. Current situation is we have reached maximum agent call ({current}/{maximum}) allowed by the system.
 **What this means:**
@@ -411,12 +424,15 @@ class MultiAgentOrchestrator(Loggable):
         messages = state.get("messages", [])
         plugin_descriptions = self._build_plugin_descriptions()
         tool_options = self._build_tool_options()
+        requested_tone = state.get("metadata", {}).get("tone", "natural") or "natural"
+        tone_instruction = self._get_tone_instruction(requested_tone)
 
         coordinator_prompt = ConversationPrompts.COORDINATOR_INSTRUCTIONS.format(
             plugin_descriptions=plugin_descriptions,
             tool_options=tool_options,
             current_time=datetime.now(timezone.utc).isoformat(),
             additional_coordinator_context=self.settings.additional_coordinator_context,
+            tone_instruction=tone_instruction,
         )
 
         request_messages = [SystemMessage(content=coordinator_prompt)] + messages
@@ -491,7 +507,7 @@ class MultiAgentOrchestrator(Loggable):
         """Handle graceful conversation termination when hop limits are exceeded."""
         current_hops = state.get("agent_hops", 0)
         max_hops = self.settings.max_agent_hops
-        requested_tone = state.get("tone", "natural") or "natural"
+        requested_tone = state.get("metadata", {}).get("tone", "natural") or "natural"
         tone_instruction = self._get_tone_instruction(requested_tone)
 
         suspension_message = SystemMessage(
@@ -511,7 +527,7 @@ class MultiAgentOrchestrator(Loggable):
     def _finalizer_node(self, state: AgentState) -> AgentState:
         """Synthesize complete conversation into coherent final response."""
         messages = state.get("messages", [])
-        requested_tone = state.get("tone", "natural") or "natural"
+        requested_tone = state.get("metadata", {}).get("tone", "natural") or "natural"
         tone_instruction = self._get_tone_instruction(requested_tone)
         finalization_prompt_content = ConversationPrompts.FINALIZER_INSTRUCTIONS.format(
             tone_instruction=tone_instruction,
