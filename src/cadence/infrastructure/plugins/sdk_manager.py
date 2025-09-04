@@ -45,36 +45,6 @@ class SDKPluginBundle(Loggable):
     This class encapsulates all components of a loaded plugin, providing a unified
     interface for plugin management and LangGraph integration. Each bundle contains
     the plugin contract, initialized agent, bound LLM model, and associated tools.
-
-    Bundle Components:
-        Plugin Infrastructure:
-            - contract: Plugin contract from Cadence SDK with metadata and validation
-            - metadata: Plugin information (name, version, capabilities, description)
-            - agent: Initialized agent instance ready for conversation processing
-            - bound_model: LLM model configured specifically for this plugin
-
-        Tool Management:
-            - tools: List of LangChain tools provided by the plugin
-            - tool_node: LangGraph ToolNode for orchestration integration
-            - agent_node: LangGraph agent node for conversation processing
-
-        LangGraph Integration:
-            - Automatic node generation with standardized naming
-            - Edge definitions for tool routing and agent coordination
-            - State management integration with core orchestrator
-
-    Example:
-        ```python
-        bundle = SDKPluginBundle(
-            contract=plugin_contract,
-            agent=initialized_agent,
-            bound_model=configured_model,
-            tools=[calculator_tool, search_tool]
-        )
-
-        print(f"Plugin: {bundle.metadata.name} v{bundle.metadata.version}")
-        print(f"Capabilities: {bundle.metadata.capabilities}")
-        ```
     """
 
     def __init__(

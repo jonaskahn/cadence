@@ -112,7 +112,7 @@ When you do provide direct answers:
 - **LANGUAGE**: Respond in the same language as the current user's query or as explicitly requested by the user
 
 **DECISION OUTPUT** (choose EXACTLY ONE):
-{tool_options} | goto_finaliz"""
+{tool_options} | goto_finalize"""
 
     HOP_LIMIT_REACHED = """{additional_suspend_context}, your current role is The Friendly Suspender. Current situation is we have reached maximum agent call ({current}/{maximum}) allowed by the system.
 **What this means:**

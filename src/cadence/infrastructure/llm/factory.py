@@ -27,33 +27,6 @@ class ModelCacheManager(Loggable):
     repeatedly creating identical model configurations. The caching strategy is
     based on provider, model name, and temperature settings to ensure cache hits
     for identical configurations while maintaining model isolation.
-
-    Cache Benefits:
-        - Eliminates model initialization overhead for repeated requests
-        - Reduces API connection setup time for providers
-        - Maintains provider-specific optimizations and configurations
-        - Provides memory-efficient storage of model instances
-
-    Cache Strategy:
-        - Key Generation: Combines provider + model + temperature for uniqueness
-        - Instance Reuse: Returns cached instances for identical configurations
-        - Memory Management: Automatic cleanup of unused model instances
-        - Provider Isolation: Separate caching per provider to prevent conflicts
-
-    Example:
-        ```python
-        cache_manager = ModelCacheManager()
-
-        config = ModelConfig(provider="openai", model_name="gpt-4", temperature=0.7)
-        cache_key = cache_manager.get_cache_key(config)
-
-        cached_model = cache_manager.get_cached_model(cache_key)
-        if cached_model:
-            return cached_model
-
-        new_model = create_model(config)
-        cache_manager.cache_model(cache_key, new_model)
-        ```
     """
 
     def __init__(self):
@@ -184,13 +157,7 @@ class ProviderRegistry(Loggable):
 
 
 class LLMModelFactory(Loggable):
-    """Create and manage chat models with provider and cache handling.
-
-    Responsibilities:
-    - Resolve provider credentials from ``Settings`` when missing in ``ModelConfig``.
-    - Cache constructed models to avoid redundant instantiation.
-    - Bind tools for agent-specific execution.
-    """
+    """Create and manage chat models with provider and cache handling."""
 
     def __init__(self, settings: Settings):
         super().__init__()

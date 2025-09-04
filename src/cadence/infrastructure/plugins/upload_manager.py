@@ -39,6 +39,7 @@ class PluginUploadManager(Loggable):
     """Manage plugin uploads, validation, installation, and listing."""
 
     def __init__(self, plugin_manager: SDKPluginManager):
+        super().__init__()
         self.plugin_manager = plugin_manager
         self.storage_root = Path(settings.storage_root)
         self.store_plugin_dir = self.storage_root / "uploaded"

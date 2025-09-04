@@ -33,6 +33,7 @@ class OrchestratorResponse(Loggable):
         routing_history: Optional[List[str]] = None,
         error: Optional[str] = None,
     ):
+        super().__init__()
         self.response = response
         self.input_tokens = input_tokens
         self.output_tokens = output_tokens

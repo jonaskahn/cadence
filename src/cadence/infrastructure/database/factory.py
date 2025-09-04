@@ -30,6 +30,7 @@ class DatabaseFactory(Loggable):
     """
 
     def __init__(self, settings: Settings):
+        super().__init__()
         self.settings = settings
         self.connection_manager: DatabaseConnectionManager = None
 
