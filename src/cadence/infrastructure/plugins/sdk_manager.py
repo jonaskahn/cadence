@@ -11,6 +11,9 @@ from typing import Any, Dict, List, Optional, Set, Union
 from langchain_core.tools import Tool, tool
 from langgraph.prebuilt import ToolNode
 
+from ...config.settings import settings
+from ...core.schema import DynamicModelBinder
+
 try:
     from cadence_sdk import BaseAgent, BasePlugin, ModelConfig, discover_plugins
     from cadence_sdk.utils import validate_plugin_structure
@@ -104,6 +107,7 @@ class SDKPluginManager(Loggable):
         self.failed_plugins: Set[str] = set()
         self._dir_discovery = DirectoryPluginDiscovery()
         self._source_map: Dict[str, str] = {}
+        self.model_binder = DynamicModelBinder()
 
     @staticmethod
     def _get_class_module_file(klass) -> Optional[Path]:
@@ -226,8 +230,6 @@ class SDKPluginManager(Loggable):
     def _attach_uploaded_plugins_dir_to_directory_load(self) -> None:
         """Load plugins from the uploaded plugins directory."""
         try:
-            from ...config.settings import settings
-
             store_plugin_dir = Path(settings.storage_root) / "uploaded"
 
             if store_plugin_dir.exists():
@@ -265,6 +267,11 @@ class SDKPluginManager(Loggable):
             agent.initialize()
 
             bundle = SDKPluginBundle(contract=contract, agent=agent, bound_model=bound_model, tools=tools)
+
+            # Register response schema if available
+            if hasattr(metadata, "response_schema") and metadata.response_schema:
+                self.model_binder.register_plugin(plugin_name, metadata.response_schema)
+                self.logger.debug(f"Registered response schema for plugin: {plugin_name}")
 
             self.plugin_bundles[plugin_name] = bundle
             self.plugin_contracts[plugin_name] = contract
@@ -431,20 +438,29 @@ class SDKPluginManager(Loggable):
                 return name
 
             _goto.__name__ = f"goto_{name}"
-            _goto.__doc__ = description or _goto.__doc__
+            _goto.__doc__ = f"{description or _goto.__doc__}. Args: No parameters"
             return tool(_goto)
 
         for plugin_name in self.get_available_plugins():
             bundle = self.plugin_bundles.get(plugin_name)
             capabilities = ", ".join(bundle.metadata.capabilities) if bundle else ""
-            desc = f"**{plugin_name}** agent." + (f" Capabilities only for: {capabilities}" if capabilities else "")
+            desc = f"{bundle.metadata.description}" + (
+                f". The agent capabilities are only for: {capabilities}" if capabilities else ""
+            )
             control_tools.append(_make_goto_tool(plugin_name, desc))
 
-        def goto_finalize() -> str:
-            """Finish the workflow and produce the final answer."""
+        def goto_response() -> str:
+            """Generate and return the final response to the user, use when any of the following is true:
+            - Simple questions: like greeting, goodbye, basic factual queries
+            - Re-translate answer to other languages
+            - Unclear requests that need clarification questions
+            - The answer for the current user query is ready (sufficient information gathered)
+            - No suitable agent is needed or available for the next step
+            - The most recent agent response indicates the user must provide additional information (clarification, missing inputs, choice selection)
+            """
             return "finalize"
 
-        control_tools.append(tool(goto_finalize))
+        control_tools.append(tool(goto_response))
         return control_tools
 
     def reload_plugins(self) -> None:
@@ -477,3 +493,10 @@ class SDKPluginManager(Loggable):
         self.plugin_contracts.clear()
         self.healthy_plugins.clear()
         self.failed_plugins.clear()
+
+        # Clear model binder cache
+        self.model_binder.clear_cache()
+
+    def get_model_binder(self) -> DynamicModelBinder:
+        """Get the dynamic model binder for structured output."""
+        return self.model_binder

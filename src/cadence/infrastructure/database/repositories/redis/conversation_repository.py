@@ -11,33 +11,7 @@ from ...repositories.conversation_repository import ConversationRepository
 
 
 class RedisConversationRepository(ConversationRepository):
-    """Redis implementation of ConversationRepository.
-
-    This implementation leverages Redis's high-performance data structures for
-    optimized conversation storage:
-
-    Storage Strategy:
-        - Hash sets for conversation data storage
-        - Sorted sets for efficient pagination and chronological ordering
-        - Sets for indexing by thread_id, user_id, and org_id
-        - Atomic operations for thread token updates
-        - TTL support for automatic expiration
-
-    Key Features:
-        - Sub-millisecond read/write performance
-        - Efficient pagination with sorted sets
-        - Full-text search capabilities using Redis search
-        - Atomic token counter updates
-        - Automatic indexing for fast queries
-        - Configurable TTL for data expiration
-        - Optimized storage (only user input + final AI response)
-
-    Performance Optimizations:
-        - Pipeline operations for batch updates
-        - Lua scripts for atomic operations
-        - Efficient set intersections for filtering
-        - Sorted sets for O(log N) pagination
-    """
+    """Redis implementation of ConversationRepository."""
 
     def __init__(self, redis_client: redis.Redis, thread_repository=None, ttl_days: int = 365):
         """Initialize Redis ConversationRepository.

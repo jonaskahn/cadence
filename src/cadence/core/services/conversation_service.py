@@ -9,12 +9,15 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from cadence_sdk.base.loggable import Loggable
+from cadence_sdk.types.state import PluginContextFields, StateHelpers
+
+from sdk.src.cadence_sdk.types.state import AgentState, AgentStateFields
 
 from ...domain.dtos.chat_dtos import ChatRequest, ChatResponse, TokenUsage
 from ...domain.models.conversation import Conversation
 from ...domain.models.thread import Thread, ThreadStatus
 from ...infrastructure.database.repositories import ConversationRepository, ThreadRepository
-from ..orchestrator.coordinator import MultiAgentOrchestrator
+from ..orchestrator.coordinator import AgentCoordinator
 
 
 class ConversationService(Loggable):
@@ -28,7 +31,7 @@ class ConversationService(Loggable):
         self,
         thread_repository: ThreadRepository,
         conversation_repository: ConversationRepository,
-        orchestrator: MultiAgentOrchestrator,
+        orchestrator: AgentCoordinator,
     ):
         super().__init__()
         self.thread_repository = thread_repository
@@ -73,16 +76,14 @@ class ConversationService(Loggable):
         conversation_history = await self.conversation_repository.get_conversation_history(thread.thread_id, limit=50)
         langgraph_context = self._prepare_langgraph_context(conversation_history, message)
 
-        from cadence_sdk.types.state import AgentState
-
         agent_state: AgentState = {
-            "messages": langgraph_context,
-            "current_agent": "coordinator",
-            "agent_hops": 0,
-            "thread_id": thread.thread_id,
-            "plugin_context": {},
-            "metadata": {
-                "thread_id": thread.thread_id,
+            AgentStateFields.MESSAGES: langgraph_context,
+            AgentStateFields.CURRENT_AGENT: "coordinator",
+            AgentStateFields.AGENT_HOPS: 0,
+            AgentStateFields.THREAD_ID: thread.thread_id,
+            AgentStateFields.PLUGIN_CONTEXT: StateHelpers.get_plugin_context({}),  # Initialize with defaults
+            AgentStateFields.METADATA: {
+                AgentStateFields.THREAD_ID: thread.thread_id,
                 "user_id": user_id,
                 "organization_id": org_id,
                 "checkpoint_ns": f"org_{org_id}/user_{user_id}",
@@ -98,6 +99,7 @@ class ConversationService(Loggable):
 
         response_text = self._extract_response_text(orchestrator_result)
         processing_metadata = self._extract_processing_metadata(orchestrator_result)
+
         processing_metadata["processing_time"] = processing_time
 
         user_token_count = self._estimate_tokens(message)
@@ -110,10 +112,10 @@ class ConversationService(Loggable):
             user_tokens=user_token_count,
             assistant_tokens=assistant_token_count,
             metadata={
-                "agent_hops": processing_metadata.get("agent_hops", 0),
+                AgentStateFields.AGENT_HOPS: processing_metadata.get("agent_hops", 0),
                 "processing_time": processing_metadata.get("processing_time"),
-                "tools_used": processing_metadata.get("tools_used", []),
-                "routing_history": processing_metadata.get("routing_history", []),
+                PluginContextFields.TOOLS_USED: processing_metadata.get("tools_used", []),
+                PluginContextFields.ROUTING_HISTORY: processing_metadata.get(PluginContextFields.ROUTING_HISTORY, []),
                 "model_used": processing_metadata.get("model_used"),
                 **(metadata or {}),
             },
@@ -133,8 +135,9 @@ class ConversationService(Loggable):
                 total_tokens=user_token_count + assistant_token_count,
             ),
             metadata={
-                "agent_hops": processing_metadata.get("agent_hops", 0),
-                "multi_agent": len(set(processing_metadata.get("routing_history", []))) > 1,
+                AgentStateFields.AGENT_HOPS: processing_metadata.get("agent_hops", 0),
+                AgentStateFields.MULTI_AGENT: len(set(processing_metadata.get(PluginContextFields.ROUTING_HISTORY, [])))
+                > 1,
                 "tools_used": processing_metadata.get("tools_used", []),
                 "processing_time": processing_metadata.get("processing_time"),
                 "thread_message_count": int(thread.message_count) + 1,
@@ -176,7 +179,7 @@ class ConversationService(Loggable):
         """
         from langchain_core.messages import AIMessage
 
-        messages = orchestrator_result.get("messages", [])
+        messages = orchestrator_result.get(AgentStateFields.MESSAGES, [])
         for msg in reversed(messages):
             if isinstance(msg, AIMessage) and getattr(msg, "content", None):
                 return msg.content
@@ -194,7 +197,7 @@ class ConversationService(Loggable):
             Dictionary containing tools used, routing history, and processing info
         """
         tools_used = []
-        messages = orchestrator_result.get("messages", [])
+        messages = orchestrator_result.get(AgentStateFields.MESSAGES, [])
 
         for message in messages:
             if hasattr(message, "tool_calls") and message.tool_calls:
@@ -209,10 +212,13 @@ class ConversationService(Loggable):
 
         agent_hops = len(routing_tools)
 
+        # Extract plugin context using StateHelpers
+        plugin_context = StateHelpers.get_plugin_context(orchestrator_result)
+
         return {
             "tools_used": tools_used,
-            "agent_hops": agent_hops,
-            "routing_history": orchestrator_result.get("plugin_context", {}).get("routing_history", []),
+            AgentStateFields.AGENT_HOPS: agent_hops,
+            PluginContextFields.ROUTING_HISTORY: plugin_context.get(PluginContextFields.ROUTING_HISTORY, []),
             "model_used": "default",
         }
 

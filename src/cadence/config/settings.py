@@ -34,6 +34,26 @@ class Settings(BaseSettings):
     openai_api_key: Optional[str] = Field(default=None, description="OpenAI API key")
     anthropic_api_key: Optional[str] = Field(default=None, description="Anthropic API key")
     google_api_key: Optional[str] = Field(default=None, description="Google AI API key")
+    default_llm_temperature: float = Field(default=0.1, description="Default temperature for LLM models")
+    default_llm_context_window: int = Field(default=32_000, description="Default context window size for LLM models")
+
+    coordinator_llm_provider: Optional[str] = Field(
+        default=None, description="LLM provider for the coordinator. Falls back to default if None"
+    )
+    coordinator_temperature: float = Field(default=0.1, description="Temperature for the coordinator LLM")
+    coordinator_max_tokens: int = Field(default=32_000, description="Max tokens for the coordinator LLM")
+
+    suspend_llm_provider: Optional[str] = Field(
+        default=None, description="LLM provider for the suspend node. Falls back to default if None"
+    )
+    suspend_temperature: float = Field(default=0.7, description="Temperature for the suspend node LLM")
+    suspend_max_tokens: int = Field(default=32_000, description="Max tokens for the suspend node LLM")
+
+    finalizer_llm_provider: Optional[str] = Field(
+        default=None, description="LLM provider for the finalizer. Falls back to default if None"
+    )
+    finalizer_temperature: float = Field(default=0.7, description="Temperature for the finalizer LLM")
+    finalizer_max_tokens: int = Field(default=32_000, description="Max tokens for the finalizer LLM")
 
     plugins_dir: List[str] = Field(
         default=["./plugins/src/cadence_example_plugins"], description="Directories to search for plugins"
@@ -88,23 +108,9 @@ class Settings(BaseSettings):
     test_mode: bool = Field(default=False, description="Enable test mode")
     mock_external_services: bool = Field(default=False, description="Mock external services in tests")
 
-    worker_processes: int = Field(default=1, description="Number of worker processes")
-    max_concurrent_requests: int = Field(default=1000, description="Maximum concurrent requests")
-    request_timeout: int = Field(default=30, description="Request timeout in seconds")
-
     enable_prometheus: bool = Field(default=False, description="Enable Prometheus metrics")
     metrics_port: int = Field(default=9090, description="Metrics endpoint port")
 
-    backup_enabled: bool = Field(default=False, description="Enable automatic backups")
-    backup_interval: int = Field(default=86400, description="Backup interval in seconds")
-    backup_retention_days: int = Field(default=30, description="Backup retention period")
-
-    slack_bot_token: Optional[str] = Field(default=None, description="Slack bot token")
-    discord_bot_token: Optional[str] = Field(default=None, description="Discord bot token")
-    webhook_secret: Optional[str] = Field(default=None, description="Webhook verification secret")
-
-    custom_middleware: List[str] = Field(default=[], description="Custom middleware modules")
-    custom_routes: List[str] = Field(default=[], description="Custom route modules")
     environment: str = Field(default="development", description="Environment name")
 
     additional_coordinator_context: str = Field(
@@ -115,6 +121,16 @@ class Settings(BaseSettings):
     additional_finalizer_context: str = Field(
         default="You are a helpful Cadence chatbot - designed, trained, customized by JonasKahn",
         description="Additional finalizer context",
+    )
+
+    # Structured output configuration
+    enable_structured_finalizer: bool = Field(
+        default=True, description="Enable structured output for finalizer responses using plugin schemas"
+    )
+
+    # Coordinator configuration
+    coordinator_parallel_tool_calls: bool = Field(
+        default=False, description="Enable parallel tool calls in coordinator node"
     )
 
     additional_suspend_context: str = Field(
@@ -179,13 +195,13 @@ class Settings(BaseSettings):
     def get_default_provider_llm_model(provider: str) -> str:
         """Get the default model name for the configured LLM provider."""
         if provider == "openai":
-            return "gpt-4o-mini"
+            return "gpt-4.1"
         elif provider == "anthropic":
             return "claude-3-5-sonnet-20241022"
         elif provider == "google":
             return "gemini-1.5-flash"
         else:
-            return "gpt-4o-mini"
+            return "gpt-4.1"
 
     def get_finalizer_provider_llm_model(self, provider: str) -> str:
         """Get the model name for the finalizer LLM provider."""
@@ -203,64 +219,10 @@ class Settings(BaseSettings):
         else:
             return None
 
-    def get_provider_extra_params(self, provider: str) -> dict:
-        """Get extra parameters for a specific provider."""
+    @staticmethod
+    def get_provider_extra_params(provider: str) -> dict:
+        """TODO. Not yet implemented."""
         return {}
-
-    @property
-    def default_llm_temperature(self) -> float:
-        """Get the default temperature for LLM models."""
-        return 0.7
-
-    @property
-    def default_llm_context_window(self) -> int:
-        """Get the default context window size for LLM models."""
-        return 4096
-
-    @property
-    def coordinator_llm_provider(self) -> Optional[str]:
-        """Get the LLM provider for the coordinator. Falls back to default if None."""
-        return None
-
-    @property
-    def coordinator_temperature(self) -> float:
-        """Get the temperature for the coordinator LLM."""
-        return 0.7
-
-    @property
-    def coordinator_max_tokens(self) -> int:
-        """Get the max tokens for the coordinator LLM."""
-        return 4096
-
-    @property
-    def suspend_llm_provider(self) -> Optional[str]:
-        """Get the LLM provider for the suspend node. Falls back to default if None."""
-        return None
-
-    @property
-    def suspend_temperature(self) -> float:
-        """Get the temperature for the suspend node LLM."""
-        return 0.5
-
-    @property
-    def suspend_max_tokens(self) -> int:
-        """Get the max tokens for the suspend node LLM."""
-        return 1024
-
-    @property
-    def finalizer_llm_provider(self) -> Optional[str]:
-        """Get the LLM provider for the finalizer. Falls back to default if None."""
-        return None
-
-    @property
-    def finalizer_temperature(self) -> float:
-        """Get the temperature for the finalizer LLM."""
-        return 0.3
-
-    @property
-    def finalizer_max_tokens(self) -> int:
-        """Get the max tokens for the finalizer LLM."""
-        return 1024
 
     # Derived storage directories (computed from storage_root)
     @property

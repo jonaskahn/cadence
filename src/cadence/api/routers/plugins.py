@@ -25,7 +25,6 @@ if os.environ.get("CADENCE_DEBUG", "False") == "True":
 else:
     logger.setLevel(logging.INFO)
 
-
 plugins_api_router = APIRouter()
 
 

@@ -8,10 +8,11 @@ import traceback
 import uuid
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from cadence_sdk.base.loggable import Loggable
 from cadence_sdk.types import AgentState
+from cadence_sdk.types.state import AgentStateFields, PluginContext, PluginContextFields, RoutingHelpers, StateHelpers
 from langchain_core.messages import AIMessage, SystemMessage, ToolCall
 from langgraph.graph import END, StateGraph
 from langgraph.prebuilt import ToolNode
@@ -72,47 +73,18 @@ class RoutingDecision:
 class ConversationPrompts:
     """System prompts for different conversation roles."""
 
-    COORDINATOR_INSTRUCTIONS = """{additional_coordinator_context}, your current role is the Coordinator in a multi-agent system.
-**PRIMARY RESPONSIBILITY**: Decide the next single step using the FULL conversation history (all messages), and route control to exactly ONE option from the **AVAILABLE AGENTS** or to finalize.
+    COORDINATOR_INSTRUCTIONS = """{additional_coordinator_context}, and you also are the Coordinator in a multi-agent conversation system. Your role is to analyze the conversation and determine the next appropriate tool/function call.
 
-**SYSTEM STATE**:
+**YOUR TASK:**
+1. Read and analyze the entire conversation history
+2. Understand what the user is asking for
+3. Determine which specialized agent should handle the request
+4. Call the appropriate tool to route to that tool/function calls
+
+**SYSTEM STATE:**
 - Current Time (UTC): {current_time}
 
-**ROUTING STRATEGY**:
-- Read the entire chat and tool results, not just the latest message
-- Avoid rework: if needed information already exists in history, do NOT call an agent to fetch it again
-- Prefer continuity: if the last agent was making progress and is still the best fit, keep routing to that agent
-- Choose the most efficient path to answer the user's current question
-
-**AVAILABLE AGENTS**:
-{plugin_descriptions}
-- **finalize**: Use when any of the following is true:
-  - Simple questions: like greeting, goodbye, basic factual queries
-  - Re-translate answer to other languages  
-  - Unclear requests that need clarification questions
-  - The answer for the current user query is ready (sufficient information gathered)
-  - No suitable agent is needed or available for the next step
-  - The most recent agent response indicates the user must provide additional information (clarification, missing inputs, choice selection)
-
-**STRICT ROUTING RULES**:
-- Choose only one route
-- Do not invent new tools or agents  
-- Do not perform tool work yourself; only select the next step
-- Base your decision on the full chat state and provided capabilities
-
-**WHEN ANSWERING DIRECTLY** (NOT RECOMMENDED):
-This should be rare - prefer routing to appropriate agents or finalizer when possible.
-When you do provide direct answers:
-- **RESPECT CONVERSATION HISTORY** - Use ONLY the information provided in the conversation, NEVER make up or add information
-- **ADDRESS CURRENT USER QUERY** - Focus on answering the recent user question, use previous conversation as context  
-- **BE FACTUAL, NOT ADVISORY** - Provide factual information and explanations, NEVER give recommendations, suggestions, or advice
-- **BE COMPREHENSIVE** - Provide complete, well-structured answers that fully address the user's needs
-- **BE HELPFUL** - Provide useful, actionable information that directly answers the user's question
-- **RESPONSE STYLE**: {tone_instruction}
-- **LANGUAGE**: Respond in the same language as the current user's query or as explicitly requested by the user
-
-**DECISION OUTPUT** (choose EXACTLY ONE):
-{tool_options} | goto_finalize"""
+Remember: Your job is routing, not answering. Use tool/function calls to delegate to the appropriate specialist agent."""
 
     HOP_LIMIT_REACHED = """{additional_suspend_context}, your current role is The Friendly Suspender. Current situation is we have reached maximum agent call ({current}/{maximum}) allowed by the system.
 **What this means:**
@@ -128,6 +100,9 @@ When you do provide direct answers:
 
 **IMPORTANT**, never makeup the answer if provided information by agents not enough
 
+**ADDITIONAL RESPONSE GUIDANCE**:
+{plugin_suggestions}
+
 **SYSTEM STATE**:
 - Current Time (UTC): {current_time}
 
@@ -135,7 +110,7 @@ When you do provide direct answers:
 **LANGUAGE**: Respond in the same language as the user's query or as explicitly requested by the user.
 Please provide a helpful response that addresses the user's query while explaining the hop limit situation."""
 
-    FINALIZER_INSTRUCTIONS = """{additional_finalizer_context}, your current role is The Friendly Suspender. Your current role is the Finalizer, responsible for creating the final response for a multi-agent conversation.
+    FINALIZER_INSTRUCTIONS = """{additional_finalizer_context}, your current role is the Finalizer, responsible for creating the final response for a multi-agent conversation.
 CRITICAL REQUIREMENTS:
 1. **RESPECT AGENT RESPONSES** - Use ONLY the information provided by agents and tools, NEVER make up or add information. Explain errors from agents to user by a friendly way.
 2. **ADDRESS CURRENT USER QUERY** - Focus on answering the recent user question, use previous conversation as context
@@ -143,14 +118,18 @@ CRITICAL REQUIREMENTS:
 4. **BE HELPFUL** - Provide useful, actionable information that directly answers the user's question
 5. **RESPONSE STYLE**: {tone_instruction}
 6. **LANGUAGE**: Respond in the same language as the current user's query or as explicitly requested by the user.
+7. **MARKDOWN FORMAT**: Format your response using proper markdown syntax for better readability
+
+**ADDITIONAL RESPONSE GUIDANCE**:
+{plugin_suggestions}
 
 **SYSTEM STATE**:
 - Current Time (UTC): {current_time}
 
-IMPORTANT: Your role is to synthesize and present the information that agents have gathered, not to generate new information or make assumptions beyond what's provided in the conversation."""
+IMPORTANT: Your role is to synthesize and present the information that agents have gathered. Use markdown formatting for structure and readability."""
 
 
-class MultiAgentOrchestrator(Loggable):
+class AgentCoordinator(Loggable):
     """Coordinates multi-agent conversations using LangGraph with dynamic plugin integration."""
 
     def __init__(
@@ -190,7 +169,7 @@ class MultiAgentOrchestrator(Loggable):
         )
 
         base_model = self.llm_factory.create_base_model(model_config)
-        return base_model.bind_tools(control_tools, parallel_tool_calls=False)
+        return base_model.bind_tools(control_tools, parallel_tool_calls=self.settings.coordinator_parallel_tool_calls)
 
     def _create_suspend_model(self):
         """Create LLM model for suspend node with fallback to default."""
@@ -350,7 +329,7 @@ class MultiAgentOrchestrator(Loggable):
 
     def _is_hop_limit_reached(self, state: AgentState) -> bool:
         """Check if conversation has reached maximum allowed agent hops."""
-        agent_hops = state.get("agent_hops", 0)
+        agent_hops = StateHelpers.safe_get_agent_hops(state)
         max_agent_hops = self.settings.max_agent_hops
         return agent_hops >= max_agent_hops
 
@@ -360,11 +339,11 @@ class MultiAgentOrchestrator(Loggable):
         Tracks only coordinator tool routes to agents (excludes finalize) and
         requires that the selected agent is the same across consecutive decisions.
         """
-        plugin_context = state.get("plugin_context", {}) or {}
-        same_agent_count = int(plugin_context.get("same_agent_consecutive_routes", 0) or 0)
-        limit = int(self.settings.coordinator_consecutive_agent_route_limit or 0)
         try:
-            reached = limit > 0 and same_agent_count >= limit
+            plugin_context = StateHelpers.get_plugin_context(state)
+            same_agent_count = plugin_context.get(PluginContextFields.CONSECUTIVE_AGENT_REPEATS, 0)
+            limit = int(self.settings.coordinator_consecutive_agent_route_limit or 0)
+            reached = 0 < limit <= same_agent_count
         except Exception:
             reached = False
         self.logger.debug(
@@ -374,7 +353,7 @@ class MultiAgentOrchestrator(Loggable):
 
     def _has_tool_calls(self, state: AgentState) -> bool:
         """Check if last message contains tool calls that need processing."""
-        messages = state.get("messages", [])
+        messages = StateHelpers.safe_get_messages(state)
         if not messages:
             self.logger.debug("No messages in state")
             return False
@@ -383,17 +362,15 @@ class MultiAgentOrchestrator(Loggable):
         tool_calls = getattr(last_message, "tool_calls", None)
         has_tool_calls = bool(tool_calls)
 
-        self.logger.debug(f"Last message type: {type(last_message).__name__}, has tool_calls: {has_tool_calls}")
-        if has_tool_calls:
-            self.logger.debug(f"Tool calls found: {len(tool_calls)} calls")
-            for i, tc in enumerate(tool_calls):
-                self.logger.debug(f"  Tool call {i}: {getattr(tc, 'name', 'unknown')}")
+        self.logger.debug(f"Tool calls found: {len(tool_calls)} calls")
+        for i, tc in enumerate(tool_calls):
+            self.logger.debug(f"  Tool call {i}: {getattr(tc, 'name', 'unknown')}")
 
         return has_tool_calls
 
     def _determine_plugin_route(self, state: AgentState) -> str:
         """Route to appropriate plugin agent based on tool results."""
-        messages = state.get("messages", [])
+        messages = StateHelpers.safe_get_messages(state)
         if not messages:
             return RoutingDecision.DONE
 
@@ -404,9 +381,6 @@ class MultiAgentOrchestrator(Loggable):
             return RoutingDecision.DONE
 
         tool_result = last_message.content
-        self.logger.debug(
-            f"Tool routing: tool_result='{tool_result}', available_plugins={[bundle.metadata.name for bundle in self.plugin_manager.plugin_bundles.values()]}"
-        )
 
         if tool_result in [
             plugin_bundle.metadata.name for plugin_bundle in self.plugin_manager.plugin_bundles.values()
@@ -425,26 +399,24 @@ class MultiAgentOrchestrator(Loggable):
 
     def _coordinator_node(self, state: AgentState) -> AgentState:
         """Execute main decision-making step that determines conversation routing."""
-        messages = state.get("messages", [])
+        messages = StateHelpers.safe_get_messages(state)
+
         plugin_descriptions = self._build_plugin_descriptions()
         tool_options = self._build_tool_options()
-        requested_tone = state.get("metadata", {}).get("tone", "natural") or "natural"
-        tone_instruction = self._get_tone_instruction(requested_tone)
 
         coordinator_prompt = ConversationPrompts.COORDINATOR_INSTRUCTIONS.format(
             plugin_descriptions=plugin_descriptions,
             tool_options=tool_options,
             current_time=datetime.now(timezone.utc).isoformat(),
             additional_coordinator_context=self.settings.additional_coordinator_context,
-            tone_instruction=tone_instruction,
         )
-
         request_messages = [SystemMessage(content=coordinator_prompt)] + messages
+
         coordinator_response = self.coordinator_model.invoke(request_messages)
 
-        current_agent_hops = state.get("agent_hops", 0)
-        plugin_context = dict(state.get("plugin_context", {}) or {})
-        is_routing_to_agent = self._has_tool_calls({"messages": [coordinator_response]})
+        current_agent_hops = StateHelpers.safe_get_agent_hops(state)
+        plugin_context = StateHelpers.get_plugin_context(state)
+        is_routing_to_agent = self._has_tool_calls({AgentStateFields.MESSAGES: [coordinator_response]})
 
         if is_routing_to_agent:
             tool_calls = getattr(coordinator_response, "tool_calls", [])
@@ -452,15 +424,16 @@ class MultiAgentOrchestrator(Loggable):
                 current_agent_hops = self.calculate_agent_hops(current_agent_hops, tool_calls)
                 plugin_context = self._update_same_agent_route_counter(plugin_context, tool_calls)
         else:
-            if self.settings.allowed_coordinator_terminate:
-                plugin_context = self._reset_route_counters(plugin_context)
-            else:
+            self.logger.warning("Coordinator was self-answering the question. This is not the expected behaviour")
+            if not self.settings.allowed_coordinator_terminate:
                 coordinator_response.content = ""
                 coordinator_response.tool_calls = [ToolCall(id=str(uuid.uuid4()), name="goto_finalize", args={})]
-                plugin_context = self._reset_route_counters(plugin_context)
-        updated_state = dict(state)
-        updated_state["plugin_context"] = plugin_context
-        return self._create_state_update(coordinator_response, current_agent_hops, updated_state)
+            plugin_context = self._reset_route_counters(plugin_context)
+
+        # Use StateHelpers for safe state update
+        return StateHelpers.create_state_update(
+            coordinator_response, current_agent_hops, StateHelpers.update_plugin_context(state, **plugin_context)
+        )
 
     @staticmethod
     def calculate_agent_hops(current_agent_hops, tool_calls):
@@ -480,39 +453,39 @@ class MultiAgentOrchestrator(Loggable):
         return current_agent_hops
 
     @staticmethod
-    def _reset_route_counters(plugin_context: Dict[str, Any]) -> Dict[str, Any]:
-        plugin_context = dict(plugin_context or {})
-        plugin_context["same_agent_consecutive_routes"] = 0
-        plugin_context["last_routed_agent"] = None
-        return plugin_context
+    def _reset_route_counters(plugin_context: PluginContext) -> PluginContext:
+        """Reset route counters using RoutingHelpers."""
+        return RoutingHelpers.update_consecutive_routes(plugin_context, "goto_finalize")
 
     @staticmethod
     def _update_same_agent_route_counter(
-        plugin_context: Dict[str, Any], tool_calls: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:
-        plugin_context = dict(plugin_context or {})
+        plugin_context: PluginContext, tool_calls: List[Dict[str, Any]]
+    ) -> PluginContext:
+        """Update route counter using RoutingHelpers."""
         routed_tools = [tc.get("name") if isinstance(tc, dict) else getattr(tc, "name", "") for tc in tool_calls]
         selected_tool = routed_tools[0] if routed_tools else ""
-        if selected_tool == "goto_finalize":
-            return MultiAgentOrchestrator._reset_route_counters(plugin_context)
-        if selected_tool.startswith("goto_"):
-            selected_agent = selected_tool[len("goto_") :]
-            last_agent = plugin_context.get("last_routed_agent")
-            if last_agent and last_agent == selected_agent:
-                plugin_context["same_agent_consecutive_routes"] = (
-                    int(plugin_context.get("same_agent_consecutive_routes", 0) or 0) + 1
-                )
-            else:
-                plugin_context["same_agent_consecutive_routes"] = 1
-                plugin_context["last_routed_agent"] = selected_agent
-        return plugin_context
+
+        # Update consecutive routes and add to routing history
+        updated_context = RoutingHelpers.update_consecutive_routes(plugin_context, selected_tool)
+        if selected_tool:
+            updated_context = RoutingHelpers.add_to_routing_history(updated_context, selected_tool)
+
+        return updated_context
 
     def _suspend_node(self, state: AgentState) -> AgentState:
         """Handle graceful conversation termination when hop limits are exceeded."""
-        current_hops = state.get("agent_hops", 0)
+        current_hops = StateHelpers.safe_get_agent_hops(state)
         max_hops = self.settings.max_agent_hops
-        requested_tone = state.get("metadata", {}).get("tone", "natural") or "natural"
+        metadata = StateHelpers.safe_get_metadata(state)
+        requested_tone = metadata.get("tone", "natural") or "natural"
         tone_instruction = self._get_tone_instruction(requested_tone)
+
+        # Collect response suggestions from used plugins
+        plugin_context = StateHelpers.get_plugin_context(state)
+        routing_history = plugin_context.get(PluginContextFields.ROUTING_HISTORY, [])
+        used_plugins = list(set(routing_history))
+        plugin_suggestions = self._collect_plugin_suggestions(used_plugins)
+        suggestions_text = self._format_plugin_suggestions(plugin_suggestions)
 
         suspension_message = SystemMessage(
             content=ConversationPrompts.HOP_LIMIT_REACHED.format(
@@ -521,27 +494,75 @@ class MultiAgentOrchestrator(Loggable):
                 tone_instruction=tone_instruction,
                 current_time=datetime.now(timezone.utc).isoformat(),
                 additional_suspend_context=self.settings.additional_suspend_context,
+                plugin_suggestions=suggestions_text,
             )
         )
 
-        safe_messages = self._filter_safe_messages(state["messages"])
-        suspension_response = self.suspend_model.invoke([suspension_message] + safe_messages)
-        return self._create_state_update(suspension_response, current_hops, state)
+        safe_messages = self._filter_safe_messages(state[AgentStateFields.MESSAGES])
+        suspension_response = self._get_structured_suspend_response([suspension_message] + safe_messages, used_plugins)
+        return StateHelpers.create_state_update(suspension_response, current_hops, state)
 
     def _finalizer_node(self, state: AgentState) -> AgentState:
         """Synthesize complete conversation into coherent final response."""
-        messages = state.get("messages", [])
-        requested_tone = state.get("metadata", {}).get("tone", "natural") or "natural"
+        messages = StateHelpers.safe_get_messages(state)
+        metadata = StateHelpers.safe_get_metadata(state)
+        requested_tone = metadata.get("tone", "natural") or "natural"
         tone_instruction = self._get_tone_instruction(requested_tone)
+
+        plugin_context = StateHelpers.get_plugin_context(state)
+        routing_history = plugin_context.get(PluginContextFields.ROUTING_HISTORY, [])
+        used_plugins = list(set(routing_history))
+
+        plugin_suggestions = self._collect_plugin_suggestions(used_plugins)
+        suggestions_text = self._format_plugin_suggestions(plugin_suggestions)
+
         finalization_prompt_content = ConversationPrompts.FINALIZER_INSTRUCTIONS.format(
             tone_instruction=tone_instruction,
             current_time=datetime.now(timezone.utc).isoformat(),
             additional_finalizer_context=self.settings.additional_finalizer_context,
+            plugin_suggestions=suggestions_text,
         )
         finalization_prompt = SystemMessage(content=finalization_prompt_content)
-        final_response = self.finalizer_model.invoke([finalization_prompt] + messages)
 
-        return self._create_state_update(final_response, state.get("agent_hops", 0), state)
+        if self.settings.enable_structured_finalizer and used_plugins:
+            try:
+                model_binder = self.plugin_manager.get_model_binder()
+                structured_model, is_structured = model_binder.get_structured_model(self.finalizer_model, used_plugins)
+
+                if is_structured:
+                    structured_response = structured_model.invoke([finalization_prompt] + messages)
+
+                    if isinstance(structured_response, dict) and "response" in structured_response:
+                        response_content = structured_response["response"]
+                        if "additional_data" in structured_response:
+                            additional_data = structured_response["additional_data"]
+                            data_sources = list(additional_data.keys()) if isinstance(additional_data, dict) else []
+
+                            plugin_context[PluginContextFields.FINALIZER_OUTPUT] = {
+                                "response": response_content,
+                                "additional_data": additional_data,
+                                "data_sources": data_sources,
+                            }
+
+                        final_response = AIMessage(content=response_content)
+                    else:
+                        final_response = self.finalizer_model.invoke([finalization_prompt] + messages)
+                else:
+                    final_response = self.finalizer_model.invoke([finalization_prompt] + messages)
+
+            except Exception as e:
+                self.logger.warning(f"Structured output failed: {e}")
+                final_response = self.finalizer_model.invoke([finalization_prompt] + messages)
+        else:
+            final_response = self.finalizer_model.invoke([finalization_prompt] + messages)
+
+        updated_state = StateHelpers.update_plugin_context(state, **plugin_context)
+        return StateHelpers.create_state_update(final_response, StateHelpers.safe_get_agent_hops(state), updated_state)
+
+    def get_structured_output(self, state: AgentState) -> Optional[Dict[str, Any]]:
+        """Get the structured output from finalizer if available."""
+        plugin_context = StateHelpers.get_plugin_context(state)
+        return plugin_context.get(PluginContextFields.FINALIZER_OUTPUT)
 
     @staticmethod
     def _get_tone_instruction(tone: str) -> str:
@@ -564,6 +585,59 @@ class MultiAgentOrchestrator(Loggable):
         ]
         return " | ".join(tool_names)
 
+    def _collect_plugin_suggestions(self, used_plugins: List[str]) -> Dict[str, str]:
+        """Collect response suggestions from plugins that were used during the conversation."""
+        suggestions = {}
+
+        for plugin_name in used_plugins:
+            plugin_bundle = self.plugin_manager.plugin_bundles.get(plugin_name)
+            if plugin_bundle and plugin_bundle.metadata.response_suggestion:
+                suggestions[plugin_name] = plugin_bundle.metadata.response_suggestion
+                self.logger.debug(
+                    f"Collected suggestion from {plugin_name}: {plugin_bundle.metadata.response_suggestion[:100]}..."
+                )
+
+        return suggestions
+
+    @staticmethod
+    def _format_plugin_suggestions(plugin_suggestions: Dict[str, str]) -> str:
+        """Format plugin suggestions for inclusion in the finalizer prompt."""
+        if not plugin_suggestions:
+            return ""
+
+        formatted_suggestions = []
+        for plugin_name, suggestion in plugin_suggestions.items():
+            formatted_suggestions.append(f"- **{plugin_name}**: {suggestion}")
+
+        return "\n".join(formatted_suggestions)
+
+    def _get_structured_suspend_response(self, request_messages: List, used_plugins: List[str]) -> Any:
+        """Get structured suspend response with plugin suggestions."""
+        try:
+            if used_plugins:
+                model_binder = self.plugin_manager.get_model_binder()
+                structured_model, is_structured = model_binder.get_structured_model(self.suspend_model, used_plugins)
+
+                if is_structured:
+                    structured_response = structured_model.invoke(request_messages)
+
+                    if isinstance(structured_response, dict) and "response" in structured_response:
+                        response_content = structured_response["response"]
+                        return AIMessage(content=response_content)
+                    else:
+                        self.logger.warning(
+                            "Structured suspend response format unexpected, falling back to regular model"
+                        )
+                        return self.suspend_model.invoke(request_messages)
+                else:
+                    return self.suspend_model.invoke(request_messages)
+            else:
+                return self.suspend_model.invoke(request_messages)
+
+        except Exception as e:
+            self.logger.warning(f"Structured suspend output failed: {e}")
+            return self.suspend_model.invoke(request_messages)
+
     @staticmethod
     def _filter_safe_messages(messages: List) -> List:
         """Remove messages with incomplete tool call sequences to prevent validation errors."""
@@ -575,18 +649,3 @@ class MultiAgentOrchestrator(Loggable):
             return messages
         else:
             return messages
-
-    @staticmethod
-    def _create_state_update(message: AIMessage, agent_hops: int, state: Dict[str, Any] = None) -> Dict[str, Any]:
-        """Create standardized state update structure for graph node responses."""
-        update = {
-            "messages": [message],
-            "agent_hops": agent_hops,
-        }
-
-        if state:
-            for key in ["current_agent", "plugin_context", "thread_id"]:
-                if key in state:
-                    update[key] = state[key]
-
-        return update

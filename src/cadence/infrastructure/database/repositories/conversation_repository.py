@@ -209,14 +209,6 @@ class InMemoryConversationRepository(ConversationRepository):
 
         return len(old_conversation_ids)
 
-    def clear_all(self) -> None:
-        """Clear all turns (for testing)."""
-        self._conversations.clear()
-
-    def get_all_conversations(self) -> List[Conversation]:
-        """Get all conversations (for testing)."""
-        return list(self._conversations.values())
-
     def get_storage_efficiency_estimate(self) -> Dict[str, Any]:
         """Estimate storage efficiency compared to full message storage.
 

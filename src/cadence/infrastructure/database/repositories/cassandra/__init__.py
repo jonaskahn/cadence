@@ -4,9 +4,5 @@ This module provides Cassandra-specific repository implementations.
 Currently a placeholder for future Cassandra support.
 """
 
-from .cassandra_repositories import CassandraConversationRepository, CassandraThreadRepository
-
-__all__ = [
-    "CassandraThreadRepository",
-    "CassandraConversationRepository",
-]
+# Cassandra repositories are not yet implemented
+__all__ = []

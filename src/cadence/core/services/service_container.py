@@ -19,7 +19,7 @@ from ...infrastructure.database.repositories import (
 )
 from ...infrastructure.llm.factory import LLMModelFactory
 from ...infrastructure.plugins.sdk_manager import SDKPluginManager
-from ..orchestrator.coordinator import MultiAgentOrchestrator
+from ..orchestrator.coordinator import AgentCoordinator
 from .conversation_service import ConversationService
 from .orchestrator_service import OrchestratorService
 
@@ -45,7 +45,7 @@ class ServiceContainer(Loggable):
         self.thread_repository: Optional[ThreadRepository] = None
         self.conversation_repository: Optional[ConversationRepository] = None
 
-        self.orchestrator: Optional[MultiAgentOrchestrator] = None
+        self.orchestrator: Optional[AgentCoordinator] = None
         self.orchestrator_service: Optional[OrchestratorService] = None
         self.conversation_service: Optional[ConversationService] = None
 
@@ -123,7 +123,7 @@ class ServiceContainer(Loggable):
     def _initialize_orchestration(self, settings: Settings) -> None:
         """Initialize LangGraph orchestration with optional checkpointing."""
         checkpointer = self._get_checkpointer(settings)
-        self.orchestrator = MultiAgentOrchestrator(
+        self.orchestrator = AgentCoordinator(
             plugin_manager=self.plugin_manager,
             llm_factory=self.llm_factory,
             settings=settings,
@@ -188,8 +188,8 @@ class ServiceContainer(Loggable):
             raise HTTPException(status_code=503, detail="ConversationRepository not initialized")
         return self.conversation_repository
 
-    def get_orchestrator(self) -> MultiAgentOrchestrator:
-        """Get MultiAgentOrchestrator instance (legacy compatibility)."""
+    def get_orchestrator(self) -> AgentCoordinator:
+        """Get AgentCoordinator instance (legacy compatibility)."""
         if not self.orchestrator:
             raise HTTPException(status_code=503, detail="Orchestrator not initialized")
         return self.orchestrator
