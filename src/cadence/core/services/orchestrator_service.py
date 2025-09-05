@@ -1,6 +1,6 @@
 """Orchestrator service for LangGraph coordination.
 
-Provides high-level wrapper around MultiAgentOrchestrator for application service integration,
+Provides high-level wrapper around AgentCoordinator for application service integration,
 handling LangGraph state management and response processing.
 """
 
@@ -8,11 +8,11 @@ import time
 from typing import Any, Dict, List, Optional
 
 from cadence_sdk.base.loggable import Loggable
-from cadence_sdk.types.state import AgentState
+from cadence_sdk.types.state import AgentState, PluginContextFields, StateHelpers
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 
 from ...domain.models.conversation import Conversation
-from ..orchestrator.coordinator import MultiAgentOrchestrator
+from ..orchestrator.coordinator import AgentCoordinator
 
 
 class OrchestratorResponse(Loggable):
@@ -55,10 +55,10 @@ class OrchestratorResponse(Loggable):
             "input_tokens": self.input_tokens,
             "output_tokens": self.output_tokens,
             "total_tokens": self.total_tokens,
-            "agent_hops": self.agent_hops,
+            AgentStateFields.AGENT_HOPS: self.agent_hops,
             "processing_time": self.processing_time,
-            "tools_used": self.tools_used,
-            "routing_history": self.routing_history,
+            PluginContextFields.TOOLS_USED: self.tools_used,
+            PluginContextFields.ROUTING_HISTORY: self.routing_history,
             "error": self.error,
         }
 
@@ -70,7 +70,7 @@ class OrchestratorService(Loggable):
     response extraction, and error handling.
     """
 
-    def __init__(self, orchestrator: MultiAgentOrchestrator):
+    def __init__(self, orchestrator: AgentCoordinator):
         self.orchestrator = orchestrator
 
     async def process_with_context(
@@ -89,12 +89,12 @@ class OrchestratorService(Loggable):
             langgraph_context = self._prepare_context(conversation_history, message)
 
             state: AgentState = {
-                "messages": langgraph_context,
-                "agent_hops": 0,
-                "thread_id": thread_id,
-                "plugin_context": {},
+                AgentStateFields.MESSAGES: langgraph_context,
+                AgentStateFields.AGENT_HOPS: 0,
+                AgentStateFields.THREAD_ID: thread_id,
+                AgentStateFields.PLUGIN_CONTEXT: StateHelpers.get_plugin_context({}),  # Initialize with defaults
                 "configurable": {
-                    "thread_id": thread_id,
+                    AgentStateFields.THREAD_ID: thread_id,
                     "user_id": user_id,
                     "organization_id": org_id,
                     "checkpoint_ns": f"org_{org_id}/user_{user_id}",
@@ -105,7 +105,6 @@ class OrchestratorService(Loggable):
             self.logger.debug(
                 f"Processing message for thread {thread_id} with {len(langgraph_context)} context messages"
             )
-
             result = await self.orchestrator.ask(state)
 
             response_text = self._extract_response_text(result)
@@ -114,7 +113,9 @@ class OrchestratorService(Loggable):
             input_tokens = self._estimate_input_tokens(langgraph_context)
             output_tokens = self._estimate_output_tokens(response_text)
 
-            routing_history = result.get("plugin_context", {}).get("routing_history", [])
+            routing_history = result.get(AgentStateFields.PLUGIN_CONTEXT, {}).get(
+                PluginContextFields.ROUTING_HISTORY, []
+            )
             tools_used = self._extract_tools_used(result)
 
             self.logger.info(f"Orchestrator completed for thread {thread_id}: {response_text[:100]}...")
@@ -123,7 +124,7 @@ class OrchestratorService(Loggable):
                 response=response_text,
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
-                agent_hops=result.get("agent_hops", 0),
+                agent_hops=result.get(AgentStateFields.AGENT_HOPS, 0),
                 processing_time=processing_time,
                 tools_used=tools_used,
                 routing_history=routing_history,
@@ -162,7 +163,7 @@ class OrchestratorService(Loggable):
     @staticmethod
     def _extract_response_text(orchestrator_result: Dict[str, Any]) -> str:
         """Extract final response text from orchestrator result."""
-        messages = orchestrator_result.get("messages", [])
+        messages = orchestrator_result.get(AgentStateFields.MESSAGES, [])
 
         for msg in reversed(messages):
             if isinstance(msg, AIMessage) and getattr(msg, "content", None):
@@ -173,7 +174,9 @@ class OrchestratorService(Loggable):
     @staticmethod
     def _extract_tools_used(orchestrator_result: Dict[str, Any]) -> List[str]:
         """Extract list of tools used during processing."""
-        routing_history = orchestrator_result.get("plugin_context", {}).get("routing_history", [])
+        routing_history = orchestrator_result.get(AgentStateFields.PLUGIN_CONTEXT, {}).get(
+            PluginContextFields.ROUTING_HISTORY, []
+        )
         return list(set(routing_history)) if routing_history else []
 
     @staticmethod

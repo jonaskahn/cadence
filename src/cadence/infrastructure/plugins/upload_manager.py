@@ -215,11 +215,9 @@ class PluginUploadManager(Loggable):
         if not file.filename:
             return False
 
-        # Check file extension
         if not file.filename.lower().endswith(".zip"):
             return False
 
-        # Check file size (max 50MB)
         if hasattr(file, "size") and file.size and file.size > 50 * 1024 * 1024:
             return False
 
@@ -252,8 +250,6 @@ class PluginUploadManager(Loggable):
         """Return valid Python package identifier for the plugin name."""
         return plugin_name.replace("-", "_")
 
-    # Note: previous _plugin_exists helper removed as unused
-
     def _save_archive(self, file: UploadFile, plugin_name: str, plugin_version: str) -> Path:
         """Save uploaded archive under storage/archived and return its path."""
         archive_path = self.store_archived_dir / f"{plugin_name}-{plugin_version}.zip"
@@ -274,7 +270,6 @@ class PluginUploadManager(Loggable):
     @staticmethod
     def _make_temp_dir(base: Path, prefix: str = "tmp_") -> Path:
         base.mkdir(parents=True, exist_ok=True)
-        # ensure unique directory
         unique = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
         path = base / f"{prefix}{unique}"
         path.mkdir(parents=True, exist_ok=False)
@@ -294,7 +289,6 @@ class PluginUploadManager(Loggable):
             if not (package_dir / required_file).exists():
                 result["errors"].append(f"Missing required file: {required_file}")
 
-        # Optional checks
         agent_dirs = [d for d in package_dir.iterdir() if d.is_dir() and d.name.endswith("_agent")]
         if not agent_dirs:
             result["warnings"].append("No agent directories found (expected *_agent)")
@@ -325,7 +319,6 @@ class PluginUploadManager(Loggable):
         """Normalize layout under an importable package directory named sanitized_name."""
         candidate = self._find_primary_package_dir(staging_root)
         if candidate is None:
-            # Multiple items or files at root: consolidate into sanitized_name
             package_dir = staging_root / sanitized_name
             if not package_dir.exists():
                 package_dir.mkdir(parents=True, exist_ok=False)
@@ -334,19 +327,16 @@ class PluginUploadManager(Loggable):
                     continue
                 shutil.move(str(item), str(package_dir / item.name))
         else:
-            # If candidate is the staging root itself, don't attempt to move it into a child
             if candidate.resolve() == staging_root.resolve():
                 package_dir = candidate
             elif candidate.name == sanitized_name:
                 package_dir = candidate
             else:
-                # Prefer renaming the directory if target doesn't exist
                 target_dir = staging_root / sanitized_name
                 if not target_dir.exists():
                     shutil.move(str(candidate), str(target_dir))
                     package_dir = target_dir
                 else:
-                    # Target exists: move contents and remove candidate
                     for item in list(candidate.iterdir()):
                         shutil.move(str(item), str(target_dir / item.name))
                     shutil.rmtree(candidate, ignore_errors=True)
@@ -362,12 +352,10 @@ class PluginUploadManager(Loggable):
     def _is_newer_version(self, new_version: str, current_version: str) -> bool:
         """True if new_version is strictly greater than current_version (PEP 440)."""
         if parse_version is None:
-            # Fallback: naive string compare; consider different => newer
             return str(new_version) != str(current_version)
         try:
             return parse_version(new_version) > parse_version(current_version)
         except Exception:
-            # If parsing fails, only allow when versions differ
             return str(new_version) != str(current_version)
 
     def _read_metadata(self, metadata_path: Path) -> Optional[Dict[str, Any]]:
@@ -390,7 +378,6 @@ class PluginUploadManager(Loggable):
         base = self.store_archived_dir / f"{plugin_name}-{version}.zip"
         if not base.exists():
             return base
-        # add timestamp to avoid collisions
         ts = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
         return self.store_archived_dir / f"{plugin_name}-{version}-{ts}.zip"
 
@@ -400,7 +387,6 @@ class PluginUploadManager(Loggable):
             for root, _dirs, files in os.walk(src_dir):
                 for file_name in files:
                     file_path = Path(root) / file_name
-                    # store relative to src_dir to keep clean structure inside zip
                     arcname = str(file_path.relative_to(src_dir.parent))
                     zf.write(file_path, arcname)
 
@@ -419,7 +405,6 @@ class PluginUploadManager(Loggable):
             if archive_path.exists():
                 archive_path.unlink()
         except Exception as e:
-            # Log cleanup errors but don't fail the upload
             print(f"Warning: Failed to cleanup failed upload: {e}")
 
     def list_uploaded_plugins(self) -> List[Dict]:
@@ -445,7 +430,6 @@ class PluginUploadManager(Loggable):
                     }
                 )
             except Exception as e:
-                # Skip problematic entries but continue listing others
                 try:
                     print(f"Warning: failed to list plugin at {entry}: {e}")
                 except Exception:

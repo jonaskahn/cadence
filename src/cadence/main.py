@@ -16,9 +16,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from .api.routes import router as api_router
-from .api.services import initialize_api
+from .api.services import global_service_container, initialize_api
 from .config.settings import Settings
-from .core.services.service_container import ServiceContainer
 
 app_instance: Optional[FastAPI] = None
 
@@ -51,7 +50,6 @@ class CadenceApplication:
         self.settings = settings or Settings()
         self.logger = self._setup_logging()
         self.app: Optional[FastAPI] = None
-        self.service_container: Optional[ServiceContainer] = None
 
     def _setup_logging(self) -> logging.Logger:
         """Set up consistent logging format across all components."""
@@ -70,9 +68,6 @@ class CadenceApplication:
         try:
             self.logger.info("Starting Cadence 🤖 Multi-agents AI Framework...")
 
-            self.service_container = ServiceContainer()
-            await self.service_container.initialize(self.settings)
-
             await initialize_api(self.settings)
 
             self.logger.info("Cadence 🤖 Multi-agents AI Framework started successfully")
@@ -86,8 +81,8 @@ class CadenceApplication:
         try:
             self.logger.info("Shutting down Cadence 🤖 Multi-agents AI Framework...")
 
-            if self.service_container:
-                await self.service_container.cleanup()
+            if global_service_container:
+                await global_service_container.cleanup()
 
         except Exception as e:
             self.logger.error(f"Error during shutdown: {e}")
@@ -104,7 +99,7 @@ class CadenceApplication:
         self.app = FastAPI(
             title="Cadence 🤖 Multi-agents AI Framework",
             description="A plugin-based multi-agent conversational AI framework",
-            version="1.0.11",
+            version="1.0.12",
             lifespan=lifespan,
         )
 
@@ -122,11 +117,15 @@ class CadenceApplication:
 
         @self.app.get("/health")
         async def health_check():
-            return {"status": "healthy", "message": "Cadence 🤖 Multi-agents AI Framework", "version": "1.0.11"}
+            return {"status": "healthy", "message": "Cadence 🤖 Multi-agents AI Framework", "version": self.app.version}
 
         @self.app.get("/")
         async def root():
-            return {"message": "Welcome to Cadence 🤖 Multi-agents AI Framework", "version": "1.0.11", "docs": "/docs"}
+            return {
+                "message": "Welcome to Cadence 🤖 Multi-agents AI Framework",
+                "version": self.app.version,
+                "docs": "/docs",
+            }
 
         return self.app
 

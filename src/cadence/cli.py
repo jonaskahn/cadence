@@ -25,7 +25,7 @@ console = Console()
 
 
 @click.group()
-@click.version_option(version="1.0.11", prog_name="cadence")
+@click.version_option(version="1.0.12", prog_name="cadence")
 @click.option("--debug", is_flag=True, help="Enable debug mode")
 @click.option("--config", type=click.Path(exists=True), help="Path to configuration file")
 @click.pass_context
@@ -133,7 +133,6 @@ def all(ctx, api_host: str, api_port: int, ui_port: int, reload: bool, workers: 
             )
         )
 
-        # Set environment variables
         os.environ["CADENCE_API_BASE_URL"] = f"http://{api_host}:{api_port}"
         if ctx.obj["debug"]:
             os.environ["CADENCE_DEBUG"] = "true"
@@ -155,10 +154,7 @@ def all(ctx, api_host: str, api_port: int, ui_port: int, reload: bool, workers: 
 
         console.print(f"[green]✅ API Server started on {api_host}:{api_port}[/green]")
 
-        # Wait a moment for API to start
         time.sleep(2)
-
-        # Start UI
         ui_app_path = Path(__file__).parent / "ui" / "app.py"
 
         if not ui_app_path.exists():
@@ -184,7 +180,6 @@ def all(ctx, api_host: str, api_port: int, ui_port: int, reload: bool, workers: 
         except KeyboardInterrupt:
             console.print("\n[yellow]Shutting down...[/yellow]")
         finally:
-            # Note: API server runs as daemon thread, will be cleaned up automatically
             console.print("[green]✅ API Server stopped[/green]")
 
     except Exception as e:

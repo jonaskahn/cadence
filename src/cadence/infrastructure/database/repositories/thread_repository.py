@@ -176,11 +176,3 @@ class InMemoryThreadRepository(ThreadRepository):
             return True
         except ValueError:
             return False
-
-    def clear_all(self) -> None:
-        """Clear all threads (for testing)."""
-        self._threads.clear()
-
-    def get_all_threads(self) -> List[Thread]:
-        """Get all threads (for testing)."""
-        return list(self._threads.values())

@@ -25,7 +25,6 @@ if os.environ.get("CADENCE_DEBUG", "False") == "True":
 else:
     logger.setLevel(logging.INFO)
 
-
 plugins_api_router = APIRouter()
 
 
@@ -94,6 +93,15 @@ async def get_plugin_details(
     )
 
 
+def _rebuild_orchestrator_graph():
+    """Rebuild the orchestrator graph after plugin changes."""
+    try:
+        orchestrator = global_service_container.get_orchestrator()
+        orchestrator.rebuild_graph()
+    except Exception as e:
+        logger.warning(f"Failed to rebuild orchestrator graph after reload: {e}")
+
+
 @plugins_api_router.post("/plugins/reload")
 async def reload_all_plugins(plugin_manager: SDKPluginManager = Depends(get_plugin_manager)) -> dict:
     """Reload the entire plugin system and rebuild the orchestrator graph.
@@ -104,11 +112,7 @@ async def reload_all_plugins(plugin_manager: SDKPluginManager = Depends(get_plug
     """
     try:
         plugin_manager.reload_plugins()
-        try:
-            orchestrator = global_service_container.get_orchestrator()
-            orchestrator.rebuild_graph()
-        except Exception as e:
-            logger.warning(f"Failed to rebuild orchestrator graph after reload: {e}")
+        _rebuild_orchestrator_graph()
         return {
             "status": "success",
             "loaded": list(plugin_manager.get_available_plugins()),
@@ -136,11 +140,7 @@ async def upload_plugin(
         result = upload_manager.upload_plugin(file, force_overwrite)
 
         if result.success:
-            try:
-                orchestrator = global_service_container.get_orchestrator()
-                orchestrator.rebuild_graph()
-            except Exception as e:
-                logger.warning(f"Failed to rebuild orchestrator graph after reload: {e}")
+            _rebuild_orchestrator_graph()
             return JSONResponse(
                 status_code=200,
                 content={

@@ -10,22 +10,7 @@ from ...repositories.thread_repository import ThreadRepository
 
 
 class RedisThreadRepository(ThreadRepository):
-    """Redis implementation of ThreadRepository.
-
-    This implementation leverages Redis's high-performance data structures:
-    - Hash sets for thread data storage
-    - Sorted sets for efficient pagination and sorting
-    - Sets for indexing by user_id and org_id
-    - Atomic operations for token updates
-    - TTL support for automatic expiration
-
-    Key Features:
-        - Sub-millisecond read/write performance
-        - Atomic token counter updates
-        - Efficient pagination with sorted sets
-        - Automatic indexing for fast queries
-        - Configurable TTL for data expiration
-    """
+    """Redis implementation of ThreadRepository"""
 
     def __init__(self, redis_client: redis.Redis, ttl_days: int = 365):
         """Initialize Redis ThreadRepository.
@@ -34,6 +19,7 @@ class RedisThreadRepository(ThreadRepository):
             redis_client: Redis client instance
             ttl_days: TTL in days for thread data (default: 365 days)
         """
+        super().__init__()
         self.redis = redis_client
         self.ttl_seconds = ttl_days * 24 * 60 * 60
         self._setup_key_patterns()

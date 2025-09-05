@@ -280,6 +280,7 @@ def back() -> str:
     """Return control back to the coordinator."""
     return "back"
 
+
 all_tools = tools + [back]  # Add to agent's tools
 self.tool_node = ToolNode(all_tools)  # Create ToolNode with all tools
 ```
@@ -356,10 +357,10 @@ def _coordinator_node(self, state: AgentState) -> AgentState:
     coordinator_response = self.coordinator_model.invoke(request_messages)
 
     # 3. Process routing decision and update counters
-    if self._has_tool_calls({"messages": [coordinator_response]}):
+    if self.has_tool_calls({"messages": [coordinator_response]}):
         # Agent routing - increment hop counter and update consecutive routing
         current_agent_hops = self.calculate_agent_hops(current_agent_hops, tool_calls)
-        plugin_context = self._update_same_agent_route_counter(plugin_context, tool_calls)
+        plugin_context = self._update_consecutive_routes_counter(plugin_context, tool_calls)
     else:
         # No routing decision - force finalization
         coordinator_response.content = ""

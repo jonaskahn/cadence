@@ -4,3 +4,7 @@ This module provides the core orchestration capabilities for coordinating multip
 in conversation workflows. It implements LangGraph-based conversation coordination with
 dynamic plugin integration and intelligent agent routing for complex multi-step conversations.
 """
+
+from .coordinator import AgentCoordinator
+
+__all__ = ["AgentCoordinator"]

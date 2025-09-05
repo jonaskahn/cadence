@@ -415,7 +415,6 @@ def main():
         if st.session_state.client is None:
             st.session_state.client = create_api_client(api_url)
 
-        # Agent Upload Section
         st.subheader("📤 Upload Agent")
 
         uploaded_file = st.file_uploader(
@@ -427,7 +426,6 @@ def main():
         if uploaded_file is not None and st.button("Upload Agent", use_container_width=True):
             with st.spinner("Uploading agent..."):
                 try:
-                    # Save uploaded file temporarily
                     temp_path = f"/tmp/{uploaded_file.name}"
                     with open(temp_path, "wb") as f:
                         f.write(uploaded_file.getbuffer())
@@ -436,12 +434,10 @@ def main():
 
                     if result.get("success"):
                         st.success(result.get("message", "Agent uploaded successfully!"))
-                        # Refresh plugins list
                         st.session_state.plugins = load_available_plugins(st.session_state.client)
                     else:
                         st.error(result.get("message", "Upload failed"))
 
-                    # Clean up temp file
                     import os
 
                     if os.path.exists(temp_path):
@@ -452,7 +448,6 @@ def main():
 
         st.markdown("---")
 
-        # Existing Agent Management
         st.subheader("🔄 Agent Operations")
 
         if st.button("🔄 Refresh Agents", use_container_width=True):

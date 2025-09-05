@@ -61,8 +61,8 @@ class PluginInfo(BaseModel):
     description: str = Field(..., description="Human-readable description of plugin functionality")
     capabilities: List[str] = Field(..., description="List of capabilities or features provided by the plugin")
     status: str = Field(..., description="Current plugin health status", pattern="^(healthy|failed)$")
-    source: str = Field(
-        default="unknown",
+    source: Optional[str] = Field(
+        default=None,
         description="Where the plugin was loaded from: environment|directory|storage|unknown",
         pattern="^(environment|directory|storage|unknown)$",
     )

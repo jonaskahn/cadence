@@ -2,20 +2,20 @@ name: Docs
 
 on:
   push:
-    branches: ["main"]
+    branches: [ "main" ]
     paths:
       - "mkdocs.yml"
       - "docs"
       - "docs/**"
       - ".github/workflows/docs.yml"
   pull_request:
-    branches: ["main"]
+    branches: [ "main" ]
     paths:
       - "mkdocs.yml"
       - "docs"
       - "docs/**"
   repository_dispatch:
-    types: ["docs-updated"]
+    types: [ "docs-updated" ]
   workflow_dispatch:
 
 # Required for GitHub Pages deployment
