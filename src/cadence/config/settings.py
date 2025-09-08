@@ -106,15 +106,9 @@ class OrchestratorSettings(BaseSettings):
         description="Additional synthesizer context",
     )
 
-    use_structured_synthesizer: str = Field(
-        default="model",
-        description="Structured synthesizer mode: 'model' (use structured output), 'prompt' (prompt-based JSON), or 'none'",
-    )
-    structured_synthesizer_retry_attempts: int = Field(
-        default=3, description="Retry attempts for prompt-based structured synthesizer"
-    )
-    structured_synthesizer_retry_delay: float = Field(
-        default=1.0, description="Delay between retries (seconds) for prompt-based mode"
+    use_structured_synthesizer: Optional[str] = Field(
+        default="prompt",
+        description="Structured synthesizer mode: 'model' for native structured output, 'prompt' for JSON parsing with backoff, None to disable",
     )
 
     synthesizer_compact_messages: bool = Field(

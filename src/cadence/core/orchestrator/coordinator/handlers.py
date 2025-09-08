@@ -1,10 +1,12 @@
 """Response handlers for suspend and synthesizer nodes."""
 
 import asyncio
+import json
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List
 
+from cadence_sdk.base.loggable import Loggable
 from cadence_sdk.types import AgentState
 from cadence_sdk.types.state import AgentStateFields, PluginContextFields, StateHelpers
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
@@ -14,11 +16,12 @@ from .enums import ResponseTone
 from .prompts import ConversationPrompts
 
 
-class StructuredResponseHandler:
+class StructuredResponseHandler(Loggable):
     """Handles structured response generation for different conversation nodes."""
 
     def __init__(self, plugin_manager):
         """Initialize with plugin manager."""
+        super().__init__()
         self.plugin_manager = plugin_manager
 
     def get_structured_response(self, model, request_messages: List, used_plugins: List[str]) -> Any:
@@ -48,29 +51,14 @@ class StructuredResponseHandler:
         else:
             return model.invoke(request_messages)
 
-    def get_structured_synthesizer_response(
+    def get_model_based_structured_synthesizer_response(
         self, request_messages: List, used_plugins: List[str], state: AgentState, model
     ) -> Any:
-        """Get structured synthesizer response with additional data handling.
-
-        Supports modes configured via settings.use_structured_synthesizer:
-        - "model": current behavior using runtime collector structured output
-        - "prompt": prompt-based JSON parsing with retry
-        - "none": disabled, fall back to regular model
-        """
+        """Get structured synthesizer response with additional data handling."""
         try:
             if not used_plugins:
                 return model.invoke(request_messages)
 
-            mode = getattr(getattr(self, "settings", None), "use_structured_synthesizer", "model")
-
-            if mode == "none":
-                return model.invoke(request_messages)
-
-            if mode == "prompt":
-                return self._get_prompt_structured_response(request_messages, used_plugins, state, model)
-
-            # Default: model mode
             model_binder = self.plugin_manager.get_model_binder()
             structured_model, is_structured = model_binder.get_structured_model(model, used_plugins)
 
@@ -80,64 +68,6 @@ class StructuredResponseHandler:
             structured_response = structured_model.invoke(request_messages)
             return self._extract_synthesizer_response_content(structured_response, state, model, request_messages)
 
-        except Exception:
-            return model.invoke(request_messages)
-
-    def _get_prompt_structured_response(self, request_messages: List, used_plugins: List[str], state: AgentState, model) -> Any:
-        """Prompt-based structured response with simple retry/backoff and JSON parsing."""
-        import json
-        import re
-        import time
-
-        try:
-            model_binder = self.plugin_manager.get_model_binder()
-            # Build a human-readable schema instruction based on runtime collector
-            final_schema = model_binder.collector.create_final_response_schema(used_plugins)
-            schema_description_lines: List[str] = [
-                "Respond ONLY with a JSON object matching this structure:",
-                "- response: string (markdown)",
-                "- additional_data: object where each key is a plugin name mapping to an array of plugin-specific objects",
-            ]
-
-            # Prepend a system instruction enforcing JSON-only output
-            system_instruction = SystemMessage(
-                content=(
-                    "You must return a valid JSON object that strictly matches the required structure. "
-                    "Do not include any text before or after the JSON."
-                )
-            )
-            enhanced_messages = [system_instruction] + request_messages
-
-            attempts = getattr(self.settings, "structured_synthesizer_retry_attempts", 3)
-            delay = getattr(self.settings, "structured_synthesizer_retry_delay", 1.0)
-
-            last_exception: Exception | None = None
-            for attempt in range(attempts):
-                try:
-                    response = model.invoke(enhanced_messages)
-                    content = getattr(response, "content", None) or str(response)
-
-                    # Try direct JSON parse
-                    try:
-                        parsed = json.loads(content)
-                    except json.JSONDecodeError:
-                        # Attempt to extract the first JSON object from text
-                        match_list = re.findall(r"\{[\s\S]*\}", content)
-                        parsed = json.loads(match_list[0]) if match_list else None
-
-                    if isinstance(parsed, dict):
-                        return self._extract_synthesizer_response_content(parsed, state, model, request_messages)
-
-                    raise ValueError("Parsed response is not a JSON object")
-                except Exception as e:
-                    last_exception = e
-                    if attempt < attempts - 1:
-                        time.sleep(delay)
-                        continue
-                    break
-
-            # If all attempts failed, fall back
-            return model.invoke(request_messages)
         except Exception:
             return model.invoke(request_messages)
 
@@ -163,6 +93,122 @@ class StructuredResponseHandler:
             }
 
         return AIMessage(content=response_content)
+
+    def get_prompt_based_structured_synthesizer_response(
+        self, request_messages: List, used_plugins: List[str], state: AgentState, model
+    ) -> Any:
+        """Get prompt-based structured synthesizer response with JSON parsing and backoff retry."""
+        max_retries = 3
+
+        for attempt in range(max_retries):
+            try:
+                if not used_plugins:
+                    return model.invoke(request_messages)
+                model_binder = self.plugin_manager.get_model_binder()
+                final_response_schema = model_binder.collector.create_response_schema(used_plugins)
+                enhanced_messages = self._inject_schema_to_prompt(request_messages, final_response_schema)
+                response = model.invoke(enhanced_messages)
+                parsed_response = self._parse_json_response(response)
+                if parsed_response:
+                    return self._extract_synthesizer_response_content(parsed_response, state, model, request_messages)
+                else:
+                    return response
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    self.logger.warning("Failed to inject schema to prompt based synthesizer response. Retrying...")
+                    continue
+                else:
+                    self.logger.warning("Failed to inject schema to prompt based synthesizer response. Direct invoking")
+                    return model.invoke(request_messages)
+        return self.get_model_based_structured_synthesizer_response(state, model, request_messages)
+
+    def _inject_schema_to_prompt(self, request_messages: List, schema_class) -> List:
+        """Inject JSON schema structure into the prompt."""
+        schema_description = self._generate_schema_description(schema_class)
+
+        schema_instruction = f"""
+Please respond with a valid JSON object following this exact structure:
+{schema_description}
+
+Your response must be valid JSON and include:
+- "response": Main response content in markdown format
+- "additional_data": Object with plugin-specific data arrays
+
+Example format:
+{
+    "response": "Your main response here",
+    "additional_data": {
+        "internet_browser": [
+            {
+            ...
+            },
+            {
+            ...
+            }
+        ]
+    }
+}
+"""
+        enhanced_messages = request_messages.copy()
+        schema_message = SystemMessage(content=schema_instruction)
+        enhanced_messages.insert(-1, schema_message)  # Insert before last user message
+
+        return enhanced_messages
+
+    def _generate_schema_description(self, schema_class) -> str:
+        """Generate human-readable schema description from TypedDict."""
+        try:
+            # Get type hints from the schema class
+            hints = getattr(schema_class, "__annotations__", {})
+
+            description_parts = []
+            for field_name, field_type in hints.items():
+                description_parts.append(f'  "{field_name}": {self._format_type_hint(field_type)}')
+
+            return "{\n" + ",\n".join(description_parts) + "\n}"
+        except Exception:
+            return '{\n  "response": "string",\n  "additional_data": "object"\n}'
+
+    def _format_type_hint(self, type_hint) -> str:
+        """Format type hint for schema description."""
+        if hasattr(type_hint, "__name__"):
+            return f'"{type_hint.__name__.lower()}"'
+        elif hasattr(type_hint, "__origin__"):
+            return '"object"'
+        else:
+            return '"any"'
+
+    def _parse_json_response(self, response) -> Dict[str, Any]:
+        """Parse JSON from model response with multiple extraction strategies."""
+        content = response.content if hasattr(response, "content") else str(response)
+
+        # Strategy 1: Direct JSON parsing
+        try:
+            return json.loads(content)
+        except json.JSONDecodeError:
+            pass
+
+        # Strategy 2: Extract JSON from markdown code blocks
+        try:
+            import re
+
+            json_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", content, re.DOTALL)
+            if json_match:
+                return json.loads(json_match.group(1))
+        except (json.JSONDecodeError, AttributeError):
+            pass
+
+        # Strategy 3: Find JSON-like structure in text
+        try:
+            import re
+
+            json_match = re.search(r'\{[^{}]*"response"[^{}]*\}', content, re.DOTALL)
+            if json_match:
+                return json.loads(json_match.group(0))
+        except (json.JSONDecodeError, AttributeError):
+            pass
+
+        return None
 
 
 class ResponseContextBuilder:
@@ -259,11 +305,12 @@ class SuspendHandler:
             return messages
 
 
-class SynthesizerHandler:
+class SynthesizerHandler(Loggable):
     """Handles synthesis of complete conversation into coherent final response."""
 
     def __init__(self, plugin_manager, settings, context_builder):
         """Initialize with dependencies."""
+        super().__init__()
         self.plugin_manager = plugin_manager
         self.settings = settings
         self.context_builder = context_builder
@@ -276,12 +323,12 @@ class SynthesizerHandler:
 
         synthesizer_prompt = self._create_synthesizer_prompt(tone_instruction, suggestions_text)
         request_messages = self._prepare_request_messages(synthesizer_prompt, messages)
-        final_response = self._get_final_response(request_messages, used_plugins, state, model)
-        final_response = self._normalize_response(final_response)
+        response = self._get_synthesize_response(request_messages, used_plugins, state, model)
+        response = self._normalize_response(response)
 
         plugin_context = StateHelpers.get_plugin_context(state)
         updated_state = StateHelpers.update_plugin_context(state, **plugin_context)
-        return StateHelpers.create_state_update(final_response, StateHelpers.safe_get_agent_hops(state), updated_state)
+        return StateHelpers.create_state_update(response, StateHelpers.safe_get_agent_hops(state), updated_state)
 
     def _create_synthesizer_prompt(self, tone_instruction: str, suggestions_text: str) -> SystemMessage:
         """Create the synthesizer prompt with context."""
@@ -394,12 +441,23 @@ class SynthesizerHandler:
             text = content if isinstance(content, str) else str(content)
             lines.append(f"- Note: {text[:500]}")
 
-    def _get_final_response(
+    def _get_synthesize_response(
         self, request_messages: List[Any], used_plugins: List[str], state: AgentState, model
     ) -> Any:
-        """Get the final response using structured or regular model."""
-        if getattr(self.settings, "use_structured_synthesizer", "model") != "none" and used_plugins:
-            return self.structured_handler.get_structured_synthesizer_response(
+        """Get the final response using structured synthesizer modes: model, prompt, or none."""
+        synthesizer_mode = self.settings.use_structured_synthesizer
+
+        if not synthesizer_mode or not used_plugins:
+            return model.invoke(request_messages)
+
+        if synthesizer_mode == "model":
+            self.logger.info("Using model structured synthesizer mode")
+            return self.structured_handler.get_model_based_structured_synthesizer_response(
+                request_messages, used_plugins, state, model
+            )
+        elif synthesizer_mode == "prompt":
+            self.logger.info("Using prompt structured synthesizer mode")
+            return self.structured_handler.get_prompt_based_structured_synthesizer_response(
                 request_messages, used_plugins, state, model
             )
         else:

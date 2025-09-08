@@ -71,15 +71,15 @@ class RuntimeSchemaCollector(Loggable):
         self._union_cache[cache_key] = additional_data_td
         return additional_data_td
 
-    def create_final_response_schema(self, active_plugins: Optional[List[str]] = None) -> Type[TypedDict]:
+    def create_response_schema(self, active_plugins: Optional[List[str]] = None) -> Type[TypedDict]:
         """Create final response schema with per-plugin additional_data mapping."""
-        additional_data_type = self.create_additional_data_schema(active_plugins)
+        ADDITIONAL_RESPONSE_SCHEMA = self.create_additional_data_schema(active_plugins)
 
-        class FinalResponse(TypedDict):
+        class DefaultResponseSchema(TypedDict):
             response: Annotated[str, "Main response content in markdown format"]
-            additional_data: additional_data_type
+            additional_data: ADDITIONAL_RESPONSE_SCHEMA
 
-        return FinalResponse
+        return DefaultResponseSchema
 
 
 class DynamicModelBinder(Loggable):
@@ -105,7 +105,7 @@ class DynamicModelBinder(Loggable):
         plugin_key = "_".join(sorted(plugins_with_schemas))
 
         if plugin_key not in self._bound_models:
-            final_schema = self.collector.create_final_response_schema(plugins_with_schemas)
+            final_schema = self.collector.create_response_schema(plugins_with_schemas)
 
             try:
                 structured_llm = llm.with_structured_output(final_schema)
