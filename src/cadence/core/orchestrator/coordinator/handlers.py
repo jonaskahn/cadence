@@ -51,11 +51,26 @@ class StructuredResponseHandler:
     def get_structured_synthesizer_response(
         self, request_messages: List, used_plugins: List[str], state: AgentState, model
     ) -> Any:
-        """Get structured synthesizer response with additional data handling."""
+        """Get structured synthesizer response with additional data handling.
+
+        Supports modes configured via settings.use_structured_synthesizer:
+        - "model": current behavior using runtime collector structured output
+        - "prompt": prompt-based JSON parsing with retry
+        - "none": disabled, fall back to regular model
+        """
         try:
             if not used_plugins:
                 return model.invoke(request_messages)
 
+            mode = getattr(getattr(self, "settings", None), "use_structured_synthesizer", "model")
+
+            if mode == "none":
+                return model.invoke(request_messages)
+
+            if mode == "prompt":
+                return self._get_prompt_structured_response(request_messages, used_plugins, state, model)
+
+            # Default: model mode
             model_binder = self.plugin_manager.get_model_binder()
             structured_model, is_structured = model_binder.get_structured_model(model, used_plugins)
 
@@ -65,6 +80,64 @@ class StructuredResponseHandler:
             structured_response = structured_model.invoke(request_messages)
             return self._extract_synthesizer_response_content(structured_response, state, model, request_messages)
 
+        except Exception:
+            return model.invoke(request_messages)
+
+    def _get_prompt_structured_response(self, request_messages: List, used_plugins: List[str], state: AgentState, model) -> Any:
+        """Prompt-based structured response with simple retry/backoff and JSON parsing."""
+        import json
+        import re
+        import time
+
+        try:
+            model_binder = self.plugin_manager.get_model_binder()
+            # Build a human-readable schema instruction based on runtime collector
+            final_schema = model_binder.collector.create_final_response_schema(used_plugins)
+            schema_description_lines: List[str] = [
+                "Respond ONLY with a JSON object matching this structure:",
+                "- response: string (markdown)",
+                "- additional_data: object where each key is a plugin name mapping to an array of plugin-specific objects",
+            ]
+
+            # Prepend a system instruction enforcing JSON-only output
+            system_instruction = SystemMessage(
+                content=(
+                    "You must return a valid JSON object that strictly matches the required structure. "
+                    "Do not include any text before or after the JSON."
+                )
+            )
+            enhanced_messages = [system_instruction] + request_messages
+
+            attempts = getattr(self.settings, "structured_synthesizer_retry_attempts", 3)
+            delay = getattr(self.settings, "structured_synthesizer_retry_delay", 1.0)
+
+            last_exception: Exception | None = None
+            for attempt in range(attempts):
+                try:
+                    response = model.invoke(enhanced_messages)
+                    content = getattr(response, "content", None) or str(response)
+
+                    # Try direct JSON parse
+                    try:
+                        parsed = json.loads(content)
+                    except json.JSONDecodeError:
+                        # Attempt to extract the first JSON object from text
+                        match_list = re.findall(r"\{[\s\S]*\}", content)
+                        parsed = json.loads(match_list[0]) if match_list else None
+
+                    if isinstance(parsed, dict):
+                        return self._extract_synthesizer_response_content(parsed, state, model, request_messages)
+
+                    raise ValueError("Parsed response is not a JSON object")
+                except Exception as e:
+                    last_exception = e
+                    if attempt < attempts - 1:
+                        time.sleep(delay)
+                        continue
+                    break
+
+            # If all attempts failed, fall back
+            return model.invoke(request_messages)
         except Exception:
             return model.invoke(request_messages)
 
@@ -260,10 +333,8 @@ class SynthesizerHandler:
 
     def _build_compacted_text(self, tail_messages: List[Any]) -> str:
         """Build compacted text from tail messages."""
-        header = getattr(
-            self.settings, "synthesizer_compaction_header", "Context from tools and intermediate steps (compacted):"
-        )
-        max_chars = int(getattr(self.settings, "synthesizer_compaction_max_chars", 6000) or 6000)
+        header = self.settings.synthesizer_compaction_header
+        max_chars = self.settings.synthesizer_compaction_max_chars
 
         lines: List[str] = [header]
         for msg in tail_messages:
@@ -327,7 +398,7 @@ class SynthesizerHandler:
         self, request_messages: List[Any], used_plugins: List[str], state: AgentState, model
     ) -> Any:
         """Get the final response using structured or regular model."""
-        if self.settings.enable_structured_synthesizer and used_plugins:
+        if getattr(self.settings, "use_structured_synthesizer", "model") != "none" and used_plugins:
             return self.structured_handler.get_structured_synthesizer_response(
                 request_messages, used_plugins, state, model
             )

@@ -79,6 +79,7 @@ class OrchestratorSettings(BaseSettings):
     conversation_storage_backend: str = Field(default="memory", description="Conversation storage backend")
     max_agent_hops: int = Field(default=25, description="Maximum agent hops per conversation")
     graph_recursion_limit: int = Field(default=50, description="Maximum graph recursion depth")
+
     coordinator_consecutive_agent_route_limit: int = Field(
         default=5,
         description="Max consecutive coordinator routes to agents (excluding synthesize) before suspend",
@@ -87,9 +88,13 @@ class OrchestratorSettings(BaseSettings):
         default=True,
         description="Allow coordinator to terminate conversation directly without routing through synthesizer",
     )
+    coordinator_parallel_tool_calls: bool = Field(
+        default=False, description="Enable parallel tool calls in coordinator node"
+    )
 
-    session_timeout: int = Field(default=3600, description="Session timeout in seconds")
-    max_session_history: int = Field(default=100, description="Maximum conversation history per session")
+    coordinator_invoke_timeout: int = Field(
+        default=5, description="Timeout in seconds for coordinator invoke when not allowed to terminate"
+    )
 
     additional_coordinator_context: str = Field(
         default="You are a helpful Cadence chatbot - designed, trained, customized by JonasKahn",
@@ -101,11 +106,17 @@ class OrchestratorSettings(BaseSettings):
         description="Additional synthesizer context",
     )
 
-    enable_structured_synthesizer: bool = Field(
-        default=True, description="Enable structured output for synthesizer responses using plugin schemas"
+    use_structured_synthesizer: str = Field(
+        default="model",
+        description="Structured synthesizer mode: 'model' (use structured output), 'prompt' (prompt-based JSON), or 'none'",
+    )
+    structured_synthesizer_retry_attempts: int = Field(
+        default=3, description="Retry attempts for prompt-based structured synthesizer"
+    )
+    structured_synthesizer_retry_delay: float = Field(
+        default=1.0, description="Delay between retries (seconds) for prompt-based mode"
     )
 
-    # Synthesizer message compaction
     synthesizer_compact_messages: bool = Field(
         default=True, description="Compact tool call/result chains before synthesizer to reduce confusion"
     )
@@ -115,14 +126,6 @@ class OrchestratorSettings(BaseSettings):
     synthesizer_compaction_header: str = Field(
         default="Context from tools and intermediate steps (compacted):",
         description="Header prefix for the compacted tool context block",
-    )
-
-    coordinator_parallel_tool_calls: bool = Field(
-        default=False, description="Enable parallel tool calls in coordinator node"
-    )
-
-    coordinator_invoke_timeout: int = Field(
-        default=5, description="Timeout in seconds for coordinator invoke when not allowed to terminate"
     )
 
     additional_suspend_context: str = Field(
