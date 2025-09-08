@@ -148,12 +148,11 @@ class ConversationService(Loggable):
         )
 
     def _calculate_multi_agent(self, routing_history: List[str]) -> bool:
-        """Calculate if multiple different agents were used (excluding goto_synthesize)."""
+        """Calculate if multiple different agents were used (only counting goto_ prefixed agents, excluding goto_synthesize)."""
         if not routing_history:
             return False
 
-        # Filter out goto_synthesize and get unique agents
-        agent_calls = [call for call in routing_history if call != "goto_synthesize"]
+        agent_calls = [call for call in routing_history if call.startswith("goto_") and call != "goto_synthesize"]
         unique_agents = set(agent_calls)
 
         return len(unique_agents) > 1

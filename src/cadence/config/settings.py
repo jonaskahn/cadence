@@ -6,15 +6,24 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class Settings(BaseSettings):
-    """Application configuration settings with environment variable support."""
+class AppSettings(BaseSettings):
+    """Basic application configuration settings."""
 
     app_name: str = Field(default="Cadence 🤖 Multi-agents AI Framework", description="Application name")
     debug: bool = Field(default=False, description="Enable debug mode")
+    environment: str = Field(default="development", description="Environment name")
+
+
+class APISettings(BaseSettings):
+    """API and server configuration settings."""
 
     api_host: str = Field(default="0.0.0.0", description="API host to bind to")
     api_port: int = Field(default=8000, description="API port to bind to")
     cors_origins: List[str] = Field(default=["*"], description="CORS allowed origins")
+
+
+class LLMSettings(BaseSettings):
+    """LLM provider and model configuration settings."""
 
     default_llm_provider: str = Field(default="openai", description="Default LLM provider")
     openai_api_key: Optional[str] = Field(default=None, description="OpenAI API key")
@@ -41,11 +50,9 @@ class Settings(BaseSettings):
     synthesizer_temperature: float = Field(default=0.7, description="Temperature for the synthesizer LLM")
     synthesizer_max_tokens: int = Field(default=32_000, description="Max tokens for the synthesizer LLM")
 
-    plugins_dir: List[str] = Field(
-        default=["./plugins/src/cadence_example_plugins"], description="Directories to search for plugins"
-    )
-    storage_root: str = Field(default="./storage", description="Root directory for plugin storage")
-    enable_directory_plugins: bool = Field(default=True, description="Enable directory-based plugin discovery")
+
+class DatabaseSettings(BaseSettings):
+    """Database connection configuration settings."""
 
     postgres_url: Optional[str] = Field(
         default=None, description="PostgreSQL connection URL (e.g., postgresql+asyncpg://user:pass@localhost/cadence)"
@@ -54,6 +61,20 @@ class Settings(BaseSettings):
     mongo_url: Optional[str] = Field(default=None, description="MongoDB connection URL")
     cassandra_hosts: Optional[List[str]] = Field(default=None, description="Cassandra cluster hosts")
     mariadb_url: Optional[str] = Field(default=None, description="MariaDB connection URL")
+
+
+class PluginSettings(BaseSettings):
+    """Plugin and storage configuration settings."""
+
+    plugins_dir: List[str] = Field(
+        default=["./plugins/src/cadence_example_plugins"], description="Directories to search for plugins"
+    )
+    storage_root: str = Field(default="./storage", description="Root directory for plugin storage")
+    enable_directory_plugins: bool = Field(default=True, description="Enable directory-based plugin discovery")
+
+
+class OrchestratorSettings(BaseSettings):
+    """Orchestrator and conversation flow configuration settings."""
 
     conversation_storage_backend: str = Field(default="memory", description="Conversation storage backend")
     max_agent_hops: int = Field(default=25, description="Maximum agent hops per conversation")
@@ -69,35 +90,6 @@ class Settings(BaseSettings):
 
     session_timeout: int = Field(default=3600, description="Session timeout in seconds")
     max_session_history: int = Field(default=100, description="Maximum conversation history per session")
-
-    log_level: str = Field(default="INFO", description="Logging level")
-    log_format: str = Field(
-        default="%(asctime)s - %(name)s - %(levelname)s - %(message)s", description="Log message format"
-    )
-
-    secret_key: Optional[str] = Field(default=None, description="Secret key for JWT tokens")
-    access_token_expire_minutes: int = Field(default=30, description="Access token expiration time")
-
-    rate_limit_requests: int = Field(default=100, description="Rate limit requests per minute")
-    rate_limit_window: int = Field(default=60, description="Rate limit window in seconds")
-
-    health_check_interval: int = Field(default=30, description="Health check interval in seconds")
-    health_check_timeout: int = Field(default=5, description="Health check timeout in seconds")
-
-    enable_metrics: bool = Field(default=True, description="Enable metrics collection")
-    enable_tracing: bool = Field(default=False, description="Enable distributed tracing")
-    enable_profiling: bool = Field(default=False, description="Enable performance profiling")
-
-    reload_on_change: bool = Field(default=False, description="Auto-reload on file changes")
-    enable_hot_reload: bool = Field(default=False, description="Enable hot reload for development")
-
-    test_mode: bool = Field(default=False, description="Enable test mode")
-    mock_external_services: bool = Field(default=False, description="Mock external services in tests")
-
-    enable_prometheus: bool = Field(default=False, description="Enable Prometheus metrics")
-    metrics_port: int = Field(default=9090, description="Metrics endpoint port")
-
-    environment: str = Field(default="development", description="Environment name")
 
     additional_coordinator_context: str = Field(
         default="You are a helpful Cadence chatbot - designed, trained, customized by JonasKahn",
@@ -129,10 +121,72 @@ class Settings(BaseSettings):
         default=False, description="Enable parallel tool calls in coordinator node"
     )
 
+    coordinator_invoke_timeout: int = Field(
+        default=5, description="Timeout in seconds for coordinator invoke when not allowed to terminate"
+    )
+
     additional_suspend_context: str = Field(
         default="You are a helpful Cadence chatbot - designed, trained, customized by JonasKahn",
         description="Additional suspend context",
     )
+
+
+class SecuritySettings(BaseSettings):
+    """Authentication and security configuration settings."""
+
+    secret_key: Optional[str] = Field(default=None, description="Secret key for JWT tokens")
+    access_token_expire_minutes: int = Field(default=30, description="Access token expiration time")
+
+    rate_limit_requests: int = Field(default=100, description="Rate limit requests per minute")
+    rate_limit_window: int = Field(default=60, description="Rate limit window in seconds")
+
+
+class LoggingSettings(BaseSettings):
+    """Logging configuration settings."""
+
+    log_level: str = Field(default="INFO", description="Logging level")
+    log_format: str = Field(
+        default="%(asctime)s - %(name)s - %(levelname)s - %(message)s", description="Log message format"
+    )
+
+
+class MonitoringSettings(BaseSettings):
+    """Metrics, tracing, and health check configuration settings."""
+
+    health_check_interval: int = Field(default=30, description="Health check interval in seconds")
+    health_check_timeout: int = Field(default=5, description="Health check timeout in seconds")
+
+    enable_metrics: bool = Field(default=True, description="Enable metrics collection")
+    enable_tracing: bool = Field(default=False, description="Enable distributed tracing")
+    enable_profiling: bool = Field(default=False, description="Enable performance profiling")
+
+    enable_prometheus: bool = Field(default=False, description="Enable Prometheus metrics")
+    metrics_port: int = Field(default=9090, description="Metrics endpoint port")
+
+
+class DevelopmentSettings(BaseSettings):
+    """Development and testing configuration settings."""
+
+    reload_on_change: bool = Field(default=False, description="Auto-reload on file changes")
+    enable_hot_reload: bool = Field(default=False, description="Enable hot reload for development")
+
+    test_mode: bool = Field(default=False, description="Enable test mode")
+    mock_external_services: bool = Field(default=False, description="Mock external services in tests")
+
+
+class Settings(
+    AppSettings,
+    APISettings,
+    LLMSettings,
+    DatabaseSettings,
+    PluginSettings,
+    OrchestratorSettings,
+    SecuritySettings,
+    LoggingSettings,
+    MonitoringSettings,
+    DevelopmentSettings,
+):
+    """Main application configuration settings with environment variable support."""
 
     model_config = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", case_sensitive=False, env_prefix="CADENCE_", extra="ignore"

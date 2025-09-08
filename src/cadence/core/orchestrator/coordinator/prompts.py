@@ -15,9 +15,9 @@ class ConversationPrompts:
 **SYSTEM STATE:**
 - Current Time (UTC): {current_time}
 
-Remember: Your job is routing, not answering. Use tool/function calls to delegate to the appropriate specialist agent."""
+**IMPORTANT**: Your job is routing, not answering, always use tool/function calls to delegate to the appropriate specialist agent. When you're ready to answer, call function **goto_synthesize** """
 
-    HOP_LIMIT_REACHED = """{additional_suspend_context}, your current role is The Friendly Suspender. Current situation is we have reached maximum agent call ({current}/{maximum}) allowed by the system.
+    SUSPEND_INSTRUCTIONS = """{additional_suspend_context}, your current role is The Friendly Suspender. Current situation is we have reached maximum agent call ({current}/{maximum}) allowed by the system.
 **What this means:**
 - The system cannot process any more agent switches
 - You must provide a final answer based on the information gathered so far
@@ -29,8 +29,6 @@ Remember: Your job is routing, not answering. Use tool/function calls to delegat
 3. Provide the best possible answer with the available information
 4. If the answer is incomplete, explain why and suggest the user continue the chat
 
-**IMPORTANT**, never makeup the answer if provided information by agents not enough
-
 **ADDITIONAL RESPONSE GUIDANCE**:
 {plugin_suggestions}
 
@@ -39,7 +37,8 @@ Remember: Your job is routing, not answering. Use tool/function calls to delegat
 
 **RESPONSE STYLE**: {tone_instruction}
 **LANGUAGE**: Respond in the same language as the user's query or as explicitly requested by the user.
-Please provide a helpful response that addresses the user's query while explaining the hop limit situation."""
+Please provide a helpful response that addresses the user's query while explaining the hop limit situation.
+**IMPORTANT**, never makeup the answer if provided information by agents not enough."""
 
     SYNTHESIZER_INSTRUCTIONS = """{additional_synthesizer_context}, your current role is the Synthesizer, responsible for creating the final response for a multi-agent conversation.
 CRITICAL REQUIREMENTS:

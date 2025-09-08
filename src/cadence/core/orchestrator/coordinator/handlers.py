@@ -1,11 +1,14 @@
 """Response handlers for suspend and synthesizer nodes."""
 
+import asyncio
+import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List
 
 from cadence_sdk.types import AgentState
 from cadence_sdk.types.state import AgentStateFields, PluginContextFields, StateHelpers
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.runnables import Runnable
 
 from .enums import ResponseTone
 from .prompts import ConversationPrompts
@@ -154,7 +157,7 @@ class SuspendHandler:
         tone_instruction, used_plugins, suggestions_text = self.context_builder.prepare_response_context(state)
 
         suspension_message = SystemMessage(
-            content=ConversationPrompts.HOP_LIMIT_REACHED.format(
+            content=ConversationPrompts.SUSPEND_INSTRUCTIONS.format(
                 current=current_hops,
                 maximum=max_hops,
                 tone_instruction=tone_instruction,
@@ -339,3 +342,48 @@ class SynthesizerHandler:
             else:
                 return AIMessage(content=str(final_response))
         return final_response
+
+
+class TimeoutHandler:
+    """Handles timeout mechanism for coordinator invoke when not allowed to terminate."""
+
+    def __init__(self, settings):
+        """Initialize timeout handler with settings."""
+        self.settings = settings
+
+    async def invoke_with_timeout(self, coordinator_model, request_messages: List) -> AIMessage:
+        """
+        Invoke coordinator model with timeout mechanism.
+
+        If coordinator exceeds timeout and is not allowed to terminate,
+        creates a suspend fallback response with fake ToolCall.
+
+        Args:
+            coordinator_model: The coordinator model to invoke
+            request_messages: List of messages for the coordinator
+
+        Returns:
+            AIMessage: Response from coordinator or suspend fallback
+        """
+        if self.settings.allowed_coordinator_terminate:
+            return coordinator_model.invoke(request_messages)
+
+        try:
+            runnable = Runnable.from_function(coordinator_model.invoke)
+            response = await asyncio.wait_for(
+                runnable.ainvoke(request_messages), timeout=self.settings.coordinator_invoke_timeout
+            )
+            return response
+        except asyncio.TimeoutError:
+            return self._create_suspend_fallback_response()
+
+    def _create_suspend_fallback_response(self) -> AIMessage:
+        """
+        Create a suspend fallback response when coordinator times out.
+
+        Returns:
+            AIMessage: Fake response with goto_synthesize tool call
+        """
+        from langchain_core.messages import ToolCall
+
+        return AIMessage(content="", tool_calls=[ToolCall(id=str(uuid.uuid4()), name="goto_synthesize", args={})])

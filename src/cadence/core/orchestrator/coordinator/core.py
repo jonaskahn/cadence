@@ -11,7 +11,7 @@ from cadence_sdk.types.state import AgentStateFields, StateHelpers
 from langchain_core.messages import SystemMessage, ToolCall
 
 from .graph_builder import ConversationGraphBuilder
-from .handlers import ResponseContextBuilder, SuspendHandler, SynthesizerHandler
+from .handlers import ResponseContextBuilder, SuspendHandler, SynthesizerHandler, TimeoutHandler
 from .model_factory import CoordinatorModelFactory
 from .prompts import ConversationPrompts
 from .routing import ConversationRouter, RouteCounter
@@ -40,6 +40,7 @@ class AgentCoordinator(Loggable):
         self.context_builder = ResponseContextBuilder(plugin_manager, settings)
         self.suspend_handler = SuspendHandler(plugin_manager, settings, self.context_builder)
         self.synthesizer_handler = SynthesizerHandler(plugin_manager, settings, self.context_builder)
+        self.timeout_handler = TimeoutHandler(settings)
         self.graph_builder = ConversationGraphBuilder(plugin_manager, self.router)
 
         # Create models and graph
@@ -77,7 +78,7 @@ class AgentCoordinator(Loggable):
             self.logger.error(traceback.format_exc())
             raise
 
-    def _coordinator_node(self, state: AgentState) -> AgentState:
+    async def _coordinator_node(self, state: AgentState) -> AgentState:
         """Execute main decision-making step that determines conversation routing."""
         messages = StateHelpers.safe_get_messages(state)
 
@@ -92,7 +93,7 @@ class AgentCoordinator(Loggable):
         )
         request_messages = [SystemMessage(content=coordinator_prompt)] + messages
 
-        coordinator_response = self.coordinator_model.invoke(request_messages)
+        coordinator_response = await self.timeout_handler.invoke_with_timeout(self.coordinator_model, request_messages)
 
         current_agent_hops = StateHelpers.safe_get_agent_hops(state)
         plugin_context = StateHelpers.get_plugin_context(state)
