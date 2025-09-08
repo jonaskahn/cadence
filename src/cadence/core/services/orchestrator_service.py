@@ -92,7 +92,7 @@ class OrchestratorService(Loggable):
                 AgentStateFields.MESSAGES: langgraph_context,
                 AgentStateFields.AGENT_HOPS: 0,
                 AgentStateFields.THREAD_ID: thread_id,
-                AgentStateFields.PLUGIN_CONTEXT: StateHelpers.get_plugin_context({}),  # Initialize with defaults
+                AgentStateFields.PLUGIN_CONTEXT: StateHelpers.get_plugin_context({}),
                 "configurable": {
                     AgentStateFields.THREAD_ID: thread_id,
                     "user_id": user_id,
@@ -102,8 +102,9 @@ class OrchestratorService(Loggable):
                 },
             }
 
+            context_message_count = len(langgraph_context)
             self.logger.debug(
-                f"Processing message for thread {thread_id} with {len(langgraph_context)} context messages"
+                f"Processing message for thread {thread_id} with {context_message_count} context messages"
             )
             result = await self.orchestrator.ask(state)
 
@@ -118,7 +119,8 @@ class OrchestratorService(Loggable):
             )
             tools_used = self._extract_tools_used(result)
 
-            self.logger.info(f"Orchestrator completed for thread {thread_id}: {response_text[:100]}...")
+            response_preview = response_text[:100]
+            self.logger.info(f"Orchestrator completed for thread {thread_id}: {response_preview}...")
 
             return OrchestratorResponse(
                 response=response_text,
@@ -145,11 +147,7 @@ class OrchestratorService(Loggable):
             )
 
     def _prepare_context(self, history: List[Conversation], current_message: str) -> List[BaseMessage]:
-        """Prepare LangGraph message context from conversation history.
-
-        Reconstructs conversation context from optimized storage (user input +
-        final AI response) and appends the current user message.
-        """
+        """Prepare LangGraph message context from conversation history."""
         messages = []
 
         for turn in history:
@@ -157,7 +155,9 @@ class OrchestratorService(Loggable):
 
         messages.append(HumanMessage(content=current_message))
 
-        self.logger.debug(f"Prepared context: {len(messages)} messages from {len(history)} stored turns")
+        stored_turns_count = len(history)
+        message_count = len(messages)
+        self.logger.debug(f"Prepared context: {message_count} messages from {stored_turns_count} stored turns")
         return messages
 
     @staticmethod

@@ -45,7 +45,8 @@ class ConversationService(Loggable):
         thread = await self._get_or_create_thread(request)
 
         if not thread.can_accept_message():
-            raise ValueError(f"Thread {thread.thread_id} is {thread.status.value} and cannot accept messages")
+            error_message = f"Thread {thread.thread_id} is {thread.status.value} and cannot accept messages"
+            raise ValueError(error_message)
 
         return await self._process_message_internal(
             thread, request.message, request.user_id, request.org_id, request.metadata, request.tone
@@ -81,7 +82,7 @@ class ConversationService(Loggable):
             AgentStateFields.CURRENT_AGENT: "coordinator",
             AgentStateFields.AGENT_HOPS: 0,
             AgentStateFields.THREAD_ID: thread.thread_id,
-            AgentStateFields.PLUGIN_CONTEXT: StateHelpers.get_plugin_context({}),  # Initialize with defaults
+            AgentStateFields.PLUGIN_CONTEXT: StateHelpers.get_plugin_context({}),
             AgentStateFields.METADATA: {
                 AgentStateFields.THREAD_ID: thread.thread_id,
                 "user_id": user_id,

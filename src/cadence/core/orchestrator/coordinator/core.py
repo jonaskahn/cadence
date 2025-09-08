@@ -10,7 +10,6 @@ from cadence_sdk.types import AgentState
 from cadence_sdk.types.state import AgentStateFields, StateHelpers
 from langchain_core.messages import SystemMessage, ToolCall
 
-from .constants import GraphNodeNames
 from .graph_builder import ConversationGraphBuilder
 from .handlers import ResponseContextBuilder, SuspendHandler, SynthesizerHandler
 from .model_factory import CoordinatorModelFactory

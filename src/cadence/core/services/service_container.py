@@ -61,24 +61,23 @@ class ServiceContainer(Loggable):
 
         self._initialize_infrastructure(settings)
         await self._initialize_repositories(thread_repository, conversation_repository)
-
         self._initialize_orchestration(settings)
         self._initialize_services()
 
         self.logger.info("Enhanced service container initialized successfully")
-        self.logger.debug(f"Available plugins: {self.plugin_manager.get_available_plugins()}")
-        self.logger.debug(
-            f"Repository types: Thread={type(self.thread_repository).__name__}, Conversation={type(self.conversation_repository).__name__}"
-        )
+        available_plugins = self.plugin_manager.get_available_plugins()
+        self.logger.debug(f"Available plugins: {available_plugins}")
+
+        thread_repo_type = type(self.thread_repository).__name__
+        conversation_repo_type = type(self.conversation_repository).__name__
+        self.logger.debug(f"Repository types: Thread={thread_repo_type}, Conversation={conversation_repo_type}")
 
     def _initialize_infrastructure(self, settings: Settings) -> None:
         """Initialize infrastructure components."""
         provider = settings.default_llm_provider
         if not settings.validate_llm_provider(provider):
-            raise ValueError(
-                f"Missing or invalid credentials for provider '{provider}'. "
-                "Check API key and provider-specific settings."
-            )
+            error_message = f"Missing or invalid credentials for provider '{provider}'. Check API key and provider-specific settings."
+            raise ValueError(error_message)
 
         self.llm_factory = LLMModelFactory(settings)
 
@@ -86,32 +85,36 @@ class ServiceContainer(Loggable):
         self.plugin_manager.discover_and_load_plugins()
         self.plugin_manager.perform_health_checks()
 
-        self.logger.debug(f"Infrastructure initialized with {len(self.plugin_manager.get_available_plugins())} plugins")
+        plugin_count = len(self.plugin_manager.get_available_plugins())
+        self.logger.debug(f"Infrastructure initialized with {plugin_count} plugins")
 
     async def _initialize_repositories(
         self, thread_repository: Optional[ThreadRepository], conversation_repository: Optional[ConversationRepository]
     ) -> None:
-        """Initialize repositories with dependency injection (backend-aware)."""
+        """Initialize repositories with dependency injection."""
         if thread_repository and conversation_repository:
             self.thread_repository = thread_repository
             self.conversation_repository = conversation_repository
-            self.logger.debug(
-                f"Using provided repositories: {type(thread_repository).__name__}, {type(conversation_repository).__name__}"
-            )
+            thread_repo_type = type(thread_repository).__name__
+            conversation_repo_type = type(conversation_repository).__name__
+            self.logger.debug(f"Using provided repositories: {thread_repo_type}, {conversation_repo_type}")
             return
 
-        """Build repositories based on configured backend (memory/redis/postgresql)."""
         try:
             factory = DatabaseFactory(self.settings)
             await factory.initialize()
             thread_repo, conv_repo = await factory.create_repositories()
             self.thread_repository = thread_repo
             self.conversation_repository = conv_repo
+
+            thread_repo_type = type(thread_repo).__name__
+            conversation_repo_type = type(conv_repo).__name__
             self.logger.debug(
-                f"Using configured repositories: Thread={type(thread_repo).__name__}, Conversation={type(conv_repo).__name__}"
+                f"Using configured repositories: Thread={thread_repo_type}, Conversation={conversation_repo_type}"
             )
         except Exception as e:
-            self.logger.error(f"Failed to initialize configured repositories, falling back to memory: {e}")
+            error_message = f"Failed to initialize configured repositories, falling back to memory: {e}"
+            self.logger.error(error_message)
             self._create_memory_repositories()
 
     def _create_memory_repositories(self):

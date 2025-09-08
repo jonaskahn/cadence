@@ -1,8 +1,4 @@
-"""Database factory for repository and session store creation.
-
-Implements factory pattern for creating database repositories and session stores
-based on configuration, providing backend-agnostic access to storage.
-"""
+"""Database factory for repository and session store creation."""
 
 from typing import Any, Dict, Tuple
 
@@ -23,11 +19,7 @@ from .repositories import (
 
 
 class DatabaseFactory(Loggable):
-    """Factory for creating database repositories and session stores.
-
-    Implements factory pattern to provide backend-agnostic access to database
-    repositories and session stores with automatic backend selection.
-    """
+    """Factory for creating database repositories and session stores."""
 
     def __init__(self, settings: Settings):
         super().__init__()

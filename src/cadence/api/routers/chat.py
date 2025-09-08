@@ -1,9 +1,4 @@
-"""Chat Conversation API Endpoints.
-
-This router provides the primary message processing endpoint for the multi-agent conversation system.
-It handles user message requests, orchestrates agent responses, and manages conversation threading
-for continuous dialogue sessions.
-"""
+"""Chat Conversation API Endpoints."""
 
 from __future__ import annotations
 
@@ -26,11 +21,7 @@ async def process_chat_message(
     chat_request: ChatRequest,
     conversation_service: ConversationService = Depends(get_conversation_service),
 ) -> ChatResponse:
-    """Process user message through the multi-agent orchestrator system.
-
-    Receives a user message, routes it through the appropriate agents based on content,
-    and returns the coordinated response while maintaining conversation context.
-    """
+    """Process user message through the multi-agent orchestrator system."""
     return await conversation_service.process_message(chat_request)
 
 

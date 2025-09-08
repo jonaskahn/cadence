@@ -1,8 +1,4 @@
-"""LLM model factory for multi-provider model management with caching.
-
-Provides centralized model creation, caching, provider management, and tool binding
-with support for multiple LLM providers and intelligent optimization strategies.
-"""
+"""LLM model factory for multi-provider model management with caching."""
 
 from typing import Dict, List, Optional
 

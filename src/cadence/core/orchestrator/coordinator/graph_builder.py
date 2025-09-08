@@ -5,7 +5,6 @@ from langgraph.graph import END, StateGraph
 from langgraph.prebuilt import ToolNode
 
 from .constants import GraphNodeNames, RoutingDecision
-from .routing import ConversationRouter
 
 
 class ConversationGraphBuilder:

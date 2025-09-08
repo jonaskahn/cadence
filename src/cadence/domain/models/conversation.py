@@ -11,10 +11,7 @@ from pydantic import BaseModel, Field
 
 
 class Conversation(BaseModel):
-    """User-assistant exchange with token and metadata tracking.
-
-    Represents one conversation turn with optimized storage for context reconstruction.
-    """
+    """User-assistant exchange with token and metadata tracking."""
 
     id: Optional[str | int] = Field(default_factory=lambda: str(uuid.uuid4()), description="Conversation ID")
     thread_id: str | int = Field(description="Thread ID")

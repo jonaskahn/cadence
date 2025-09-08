@@ -1,13 +1,4 @@
-"""Configuration settings for the Cadence Multi-Agent AI Framework.
-
-This module provides comprehensive configuration management for the Cadence framework.
-All configuration values can be set via environment variables with the CADENCE_ prefix
-(case-insensitive), and field validation is handled by Pydantic.
-
-The Settings class centralizes all application configuration including API settings,
-LLM provider configurations, database connections, plugin management, and system
-tuning parameters with automatic environment variable loading and validation.
-"""
+"""Configuration settings for the Cadence Multi-Agent AI Framework."""
 
 from typing import List, Optional
 
@@ -16,12 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """Application configuration settings with environment variable support.
-
-    All settings can be configured via environment variables with the CADENCE_ prefix.
-    The configuration automatically loads from .env files and provides comprehensive
-    validation for all fields to ensure system reliability.
-    """
+    """Application configuration settings with environment variable support."""
 
     app_name: str = Field(default="Cadence 🤖 Multi-agents AI Framework", description="Application name")
     debug: bool = Field(default=False, description="Enable debug mode")

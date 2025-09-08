@@ -1,8 +1,4 @@
-"""Cadence CLI - Command Line Interface for Cadence AI Framework.
-
-Provides command-line interface for interacting with the Cadence multi-agent AI
-framework, including starting the server, managing plugins, and administrative tasks.
-"""
+"""Cadence CLI - Command Line Interface for Cadence AI Framework."""
 
 import os
 import subprocess
@@ -25,7 +21,7 @@ console = Console()
 
 
 @click.group()
-@click.version_option(version="1.0.12", prog_name="cadence")
+@click.version_option(version="1.1.0", prog_name="cadence")
 @click.option("--debug", is_flag=True, help="Enable debug mode")
 @click.option("--config", type=click.Path(exists=True), help="Path to configuration file")
 @click.pass_context
@@ -43,40 +39,6 @@ def start():
 
 
 @start.command()
-@click.option("--host", default="0.0.0.0", help="Host to bind to")
-@click.option("--port", default=8000, type=int, help="Port to bind to")
-@click.option("--reload", is_flag=True, help="Enable auto-reload")
-@click.option("--workers", default=1, type=int, help="Number of worker processes")
-@click.pass_context
-def api(ctx, host: str, port: int, reload: bool, workers: int):
-    """Start the Cadence AI API server."""
-    try:
-        os.environ["CADENCE_API_BASE_URL"] = f"http://{host}:{port}"
-
-        if ctx.obj["debug"]:
-            os.environ["CADENCE_DEBUG"] = "true"
-            reload = True
-
-        console.print(
-            Panel.fit(
-                f"Starting Cadence AI API Server on {host}:{port}", title="🚀 API Server Startup", border_style="green"
-            )
-        )
-
-        settings = Settings()
-        settings.api_host = host
-        settings.api_port = port
-        settings.debug = ctx.obj["debug"]
-
-        app = CadenceApplication(settings)
-        app.run(host=host, port=port)
-
-    except Exception as e:
-        console.print(f"[red]Error starting API server: {e}[/red]")
-        sys.exit(1)
-
-
-@start.command()
 @click.option("--port", default=8501, type=int, help="Port for Streamlit UI")
 @click.option("--api-url", default="http://localhost:8000", help="API server URL")
 @click.pass_context
@@ -85,7 +47,8 @@ def ui(ctx, port: int, api_url: str):
     try:
         os.environ["CADENCE_API_BASE_URL"] = api_url
 
-        console.print(Panel.fit(f"Starting Cadence AI UI on port {port}", title="🎨 UI Startup", border_style="blue"))
+        ui_startup_message = f"Starting Cadence AI UI on port {port}"
+        console.print(Panel.fit(ui_startup_message, title="🎨 UI Startup", border_style="blue"))
         console.print(f"API Server URL: {api_url}")
         console.print(f"UI will be available at: http://localhost:{port}")
 
@@ -95,7 +58,7 @@ def ui(ctx, port: int, api_url: str):
             console.print(f"[red]UI app not found at: {ui_app_path}[/red]")
             sys.exit(1)
 
-        cmd = [
+        streamlit_command = [
             sys.executable,
             "-m",
             "streamlit",
@@ -107,8 +70,8 @@ def ui(ctx, port: int, api_url: str):
             "true",
         ]
 
-        console.print(f"Running command: {' '.join(cmd)}")
-        subprocess.run(cmd)
+        console.print(f"Running command: {' '.join(streamlit_command)}")
+        subprocess.run(streamlit_command)
 
     except Exception as e:
         console.print(f"[red]Error starting UI: {e}[/red]")
@@ -125,9 +88,10 @@ def ui(ctx, port: int, api_url: str):
 def all(ctx, api_host: str, api_port: int, ui_port: int, reload: bool, workers: int):
     """Start both Cadence AI API server and UI simultaneously."""
     try:
+        full_stack_message = f"Starting Cadence AI Complete Stack\nAPI: {api_host}:{api_port} | UI: localhost:{ui_port}"
         console.print(
             Panel.fit(
-                f"Starting Cadence AI Complete Stack\nAPI: {api_host}:{api_port} | UI: localhost:{ui_port}",
+                full_stack_message,
                 title="🚀 Full Stack Startup",
                 border_style="green",
             )
@@ -136,6 +100,7 @@ def all(ctx, api_host: str, api_port: int, ui_port: int, reload: bool, workers: 
         os.environ["CADENCE_API_BASE_URL"] = f"http://{api_host}:{api_port}"
         if ctx.obj["debug"]:
             os.environ["CADENCE_DEBUG"] = "true"
+
         settings = Settings()
         settings.api_host = api_host
         settings.api_port = api_port
@@ -158,12 +123,12 @@ def all(ctx, api_host: str, api_port: int, ui_port: int, reload: bool, workers: 
         ui_app_path = Path(__file__).parent / "ui" / "app.py"
 
         if not ui_app_path.exists():
-            console.print(f"[red]UI app not found at: {ui_app_path}[/red]")
+            console.print(f"[red]UI app not found: {ui_app_path}[/red]")
             sys.exit(1)
 
         console.print(f"[blue]🎨 Starting UI on port {ui_port}...[/blue]")
 
-        cmd = [
+        streamlit_command = [
             sys.executable,
             "-m",
             "streamlit",
@@ -176,7 +141,7 @@ def all(ctx, api_host: str, api_port: int, ui_port: int, reload: bool, workers: 
         ]
 
         try:
-            subprocess.run(cmd)
+            subprocess.run(streamlit_command)
         except KeyboardInterrupt:
             console.print("\n[yellow]Shutting down...[/yellow]")
         finally:
@@ -184,6 +149,37 @@ def all(ctx, api_host: str, api_port: int, ui_port: int, reload: bool, workers: 
 
     except Exception as e:
         console.print(f"[red]Error starting full stack: {e}[/red]")
+        sys.exit(1)
+
+
+@start.command()
+@click.option("--host", default="0.0.0.0", help="Host to bind to")
+@click.option("--port", default=8000, type=int, help="Port to bind to")
+@click.option("--reload", is_flag=True, help="Enable auto-reload")
+@click.option("--workers", default=1, type=int, help="Number of worker processes")
+@click.pass_context
+def api(ctx, host: str, port: int, reload: bool, workers: int):
+    """Start the Cadence AI API server."""
+    try:
+        os.environ["CADENCE_API_BASE_URL"] = f"http://{host}:{port}"
+
+        if ctx.obj["debug"]:
+            os.environ["CADENCE_DEBUG"] = "true"
+            reload = True
+
+        api_startup_message = f"Starting Cadence AI API Server on {host}:{port}"
+        console.print(Panel.fit(api_startup_message, title="🚀 API Server Startup", border_style="green"))
+
+        settings = Settings()
+        settings.api_host = host
+        settings.api_port = port
+        settings.debug = ctx.obj["debug"]
+
+        app = CadenceApplication(settings)
+        app.run(host=host, port=port)
+
+    except Exception as e:
+        console.print(f"[red]Error starting API server: {e}[/red]")
         sys.exit(1)
 
 
@@ -206,18 +202,18 @@ def status(ctx):
         settings = Settings()
         cadence_vars = {k: v for k, v in os.environ.items() if k.startswith("CADENCE_")}
 
-        table = Table(title="Cadence AI Status")
-        table.add_column("Setting", style="cyan")
-        table.add_column("Value", style="green")
+        status_table = Table(title="Cadence AI Status")
+        status_table.add_column("Setting", style="cyan")
+        status_table.add_column("Value", style="green")
 
-        table.add_row("Server Status", "Running" if ctx.obj.get("debug") else "Stopped")
-        table.add_row("Debug Mode", str(ctx.obj.get("debug", False)))
-        table.add_row("API Host", settings.api_host)
-        table.add_row("API Port", str(settings.api_port))
-        table.add_row("LLM Provider", settings.default_llm_provider)
-        table.add_row("Plugins Directory", ", ".join(settings.plugins_dir))
+        status_table.add_row("Server Status", "Running" if ctx.obj.get("debug") else "Stopped")
+        status_table.add_row("Debug Mode", str(ctx.obj.get("debug", False)))
+        status_table.add_row("API Host", settings.api_host)
+        status_table.add_row("API Port", str(settings.api_port))
+        status_table.add_row("LLM Provider", settings.default_llm_provider)
+        status_table.add_row("Plugins Directory", ", ".join(settings.plugins_dir))
 
-        console.print(table)
+        console.print(status_table)
 
         if cadence_vars:
             console.print("\n[cyan]Environment Variables:[/cyan]")
@@ -271,20 +267,20 @@ def config(ctx):
 
         console.print(Panel.fit("Configuration Settings", title="⚙️  Config", border_style="yellow"))
 
-        table = Table()
-        table.add_column("Setting", style="cyan")
-        table.add_column("Value", style="green")
-        table.add_column("Description", style="white")
+        config_table = Table()
+        config_table.add_column("Setting", style="cyan")
+        config_table.add_column("Value", style="green")
+        config_table.add_column("Description", style="white")
 
-        table.add_row("App Name", settings.app_name, "Application display name")
-        table.add_row("Debug", str(settings.debug), "Debug mode enabled")
-        table.add_row("API Host", settings.api_host, "API server host")
-        table.add_row("API Port", str(settings.api_port), "API server port")
-        table.add_row("LLM Provider", settings.default_llm_provider, "Default LLM provider")
-        table.add_row("Storage Backend", settings.conversation_storage_backend, "Conversation storage")
-        table.add_row("Max Agent Hops", str(settings.max_agent_hops), "Maximum agent switches")
+        config_table.add_row("App Name", settings.app_name, "Application display name")
+        config_table.add_row("Debug", str(settings.debug), "Debug mode enabled")
+        config_table.add_row("API Host", settings.api_host, "API server host")
+        config_table.add_row("API Port", str(settings.api_port), "API server port")
+        config_table.add_row("LLM Provider", settings.default_llm_provider, "Default LLM provider")
+        config_table.add_row("Storage Backend", settings.conversation_storage_backend, "Conversation storage")
+        config_table.add_row("Max Agent Hops", str(settings.max_agent_hops), "Maximum agent switches")
 
-        console.print(table)
+        console.print(config_table)
 
     except Exception as e:
         console.print(f"[red]Error showing configuration: {e}[/red]")
@@ -298,7 +294,7 @@ def health(ctx):
     try:
         console.print(Panel.fit("Health Check", title="🏥 Health", border_style="green"))
 
-        checks = [
+        health_checks = [
             ("Configuration", "✅ OK"),
             ("Settings", "✅ OK"),
             ("Plugin System", "✅ OK"),
@@ -306,7 +302,7 @@ def health(ctx):
             ("LLM Providers", "⚠️  Not checked"),
         ]
 
-        for check, status in checks:
+        for check, status in health_checks:
             console.print(f"  {check}: {status}")
 
         console.print("\n[green]Health check completed successfully![/green]")
@@ -316,13 +312,13 @@ def health(ctx):
         sys.exit(1)
 
 
-if __name__ == "__main__":
-    load_dotenv()
+def main():
+    """Main entry point for the CLI."""
     cli()
 
 
-def main():
-    """Main entry point for the CLI."""
+if __name__ == "__main__":
+    load_dotenv()
     cli()
 
 
