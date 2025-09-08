@@ -301,7 +301,7 @@ class MyAgent(BaseAgent):
         # Enable parallel tool calls for concurrent execution
         super().__init__(metadata, parallel_tool_calls=True)
 
-    # For agents with dependent tools, disable parallel execution
+    # For agents with dependent decorators, disable parallel execution
     # super().__init__(metadata, parallel_tool_calls=False)
 ```
 

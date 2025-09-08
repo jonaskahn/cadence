@@ -27,8 +27,14 @@ class RuntimeSchemaCollector(Loggable):
             self._union_cache.clear()
             self.logger.debug(f"Unregistered schema for plugin: {plugin_name}")
 
-    def _create_brief_data_mapping(self, relevant_schemas: Dict[str, Type[TypedDict]]) -> Type[TypedDict]:
-        """Create a TypedDict where each key is a plugin name mapping to List[schema]."""
+    @staticmethod
+    def _create_brief_data_mapping(relevant_schemas: Dict[str, Type[TypedDict]]) -> Type[TypedDict]:
+        """Create a TypedDict where each key is a plugin name mapping to either List[schema] or schema.
+
+        - If a plugin schema extends ListResponseSchema, the mapping value becomes List[schema].
+        - If a plugin schema extends ObjectResponseSchema, the mapping value becomes schema.
+        - If a plugin schema cannot be determined, default to List[schema] for backward compatibility.
+        """
         if not relevant_schemas:
 
             class AdditionalData(TypedDict, total=False):
@@ -38,8 +44,15 @@ class RuntimeSchemaCollector(Loggable):
 
         annotations: Dict[str, Any] = {}
         for plugin_name, schema in relevant_schemas.items():
-            # Strict schema binding: value type is List[PluginSchema]
-            annotations[plugin_name] = List[schema]  # type: ignore[valid-type]
+            kind = getattr(schema, "__response_kind__", None)
+            if kind == "object":
+                annotations[plugin_name] = schema
+                continue
+            if kind == "list":
+                annotations[plugin_name] = List[schema]
+                continue
+
+            annotations[plugin_name] = List[schema]
 
         class AdditionalData(TypedDict, total=False):
             pass
@@ -47,7 +60,8 @@ class RuntimeSchemaCollector(Loggable):
         AdditionalData.__annotations__ = annotations
         return AdditionalData
 
-    def extract_plugin_data(self, structured_response: Dict[str, Any], plugin_name: str) -> List[Dict[str, Any]]:
+    @staticmethod
+    def extract_plugin_data(structured_response: Dict[str, Any], plugin_name: str) -> List[Dict[str, Any]]:
         """Return list of items for a specific plugin from brief_data mapping."""
         brief_data = structured_response.get("brief_data", {}) or {}
         if isinstance(brief_data, dict):

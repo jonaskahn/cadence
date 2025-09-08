@@ -32,12 +32,12 @@ Each `SDKPluginBundle` contains:
 bundle = SDKPluginBundle(
     contract=plugin_contract,  # BasePlugin instance
     agent=agent_instance,  # BaseAgent instance
-    bound_model=llm_model,  # LLM with tools bound
+    bound_model=llm_model,  # LLM with decorators bound
     tools=agent_tools  # List[Tool] from agent.get_tools()
 )
 
 # Bundle creates:
-# 1. ToolNode with agent tools + automatic "back" tool
+# 1. ToolNode with agent decorators + automatic "back" tool
 # 2. Agent node callable from agent.create_agent_node()
 ```
 
@@ -80,7 +80,7 @@ Each bundle provides nodes and edges:
 # Nodes with normalized naming
 nodes = {
     f"{plugin_name}_agent": bundle.agent_node,  # Callable from create_agent_node()
-    f"{plugin_name}_tools": bundle.tool_node  # ToolNode(tools + back_tool)
+    f"{plugin_name}_tools": bundle.tool_node  # ToolNode(decorators + back_tool)
 }
 
 # Edges define routing logic
@@ -89,7 +89,7 @@ edges = {
         f"{plugin_name}_agent": {
             "condition": agent.should_continue,  # Static method reference
             "mapping": {
-                "continue": f"{plugin_name}_tools",  # Route to tools
+                "continue": f"{plugin_name}_tools",  # Route to decorators
                 "back": "coordinator"  # Return to coordinator
             }
         }

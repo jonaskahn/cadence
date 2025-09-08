@@ -638,11 +638,12 @@ class SynthesizerHandler(Loggable):
         return final_response
 
 
-class TimeoutHandler:
+class TimeoutHandler(Loggable):
     """Handles timeout mechanism for coordinator invoke when not allowed to terminate."""
 
     def __init__(self, settings):
         """Initialize timeout handler with settings."""
+        super().__init__()
         self.settings = settings
 
     async def invoke_with_timeout(self, coordinator_model, request_messages: List) -> AIMessage:
@@ -668,6 +669,7 @@ class TimeoutHandler:
             )
             return response
         except asyncio.TimeoutError:
+            self.logger.warning("Timeout for coordinator invoke, auto add fake ToolCall to finalize")
             return self._create_synthesize_fallback_response()
 
     @staticmethod

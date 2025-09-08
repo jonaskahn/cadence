@@ -21,7 +21,7 @@ console = Console()
 
 
 @click.group()
-@click.version_option(version="1.1.0", prog_name="cadence")
+@click.version_option(version="1.2.0", prog_name="cadence")
 @click.option("--debug", is_flag=True, help="Enable debug mode")
 @click.option("--config", type=click.Path(exists=True), help="Path to configuration file")
 @click.pass_context
@@ -320,6 +320,5 @@ def main():
 if __name__ == "__main__":
     load_dotenv()
     cli()
-
 
 __all__ = ["cli", "main"]

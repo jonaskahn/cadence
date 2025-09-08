@@ -251,7 +251,7 @@ def get_graph_edges(self) -> Dict[str, Any]:
             f"{normalized_agent_name}_agent": {
                 "condition": self.agent.should_continue,  # Static method reference
                 "mapping": {
-                    "continue": f"{normalized_agent_name}_tools",  # Route to tools
+                    "continue": f"{normalized_agent_name}_tools",  # Route to decorators
                     "back": "coordinator",  # Return to coordinator
                 },
             }
@@ -281,8 +281,8 @@ def back() -> str:
     return "back"
 
 
-all_tools = tools + [back]  # Add to agent's tools
-self.tool_node = ToolNode(all_tools)  # Create ToolNode with all tools
+all_tools = tools + [back]  # Add to agent's decorators
+self.tool_node = ToolNode(all_tools)  # Create ToolNode with all decorators
 ```
 
 **Design Principles:**

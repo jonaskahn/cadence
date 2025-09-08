@@ -24,7 +24,8 @@ class RedisThreadRepository(ThreadRepository):
         self.ttl_seconds = ttl_days * 24 * 60 * 60
         self._setup_key_patterns()
 
-    def _decode_value(self, value: Any) -> Any:
+    @staticmethod
+    def _decode_value(value: Any) -> Any:
         """Decode a Redis-returned value if it is bytes."""
         if isinstance(value, bytes):
             try:

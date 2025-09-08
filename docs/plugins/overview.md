@@ -138,7 +138,7 @@ from cadence_sdk import BasePlugin, PluginMetadata, BaseAgent, tool
 from cadence_sdk.base.plugin import BasePlugin
 from cadence_sdk.base.metadata import PluginMetadata
 from cadence_sdk.base.agent import BaseAgent
-from cadence_sdk.tools.decorators import tool
+from cadence_sdk.decorators.tool import tool
 ```
 
 **Important**: Always use the main `cadence_sdk` import for the core classes and `tool` decorator. The specific
@@ -238,7 +238,7 @@ class MathPlugin(BasePlugin):
     def get_metadata() -> PluginMetadata:
         return PluginMetadata(
             name="mathematics",
-            version="1.1.0",
+            version="1.2.0",
             description="Mathematical calculations and arithmetic operations agent",
             agent_type="specialized",
             capabilities=["addition", "subtraction", "multiplication", "division"],

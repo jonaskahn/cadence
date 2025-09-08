@@ -464,13 +464,11 @@ def display_chat_messages():
                 # Render optional brief_data as UI enhancements
                 brief_data = chat_message.get("brief_data")
                 if brief_data and isinstance(brief_data, dict):
-                    internet_browser_items = brief_data.get("internet_browser")
-                    if isinstance(internet_browser_items, list) and len(internet_browser_items) > 0:
+                    browse_internet_items = brief_data.get("browse_internet")
+                    if isinstance(browse_internet_items, list) and len(browse_internet_items) > 0:
                         st.markdown("**Suggested links**")
-                        # Horizontal carousel-like row using columns
-                        # Limit to first 5 items for brevity
                         max_items = 5
-                        items = internet_browser_items[:max_items]
+                        items = browse_internet_items[:max_items]
                         num_cols = min(len(items), 5)
                         if num_cols > 0:
                             cols = st.columns(num_cols)

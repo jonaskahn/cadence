@@ -94,7 +94,6 @@ class CadenceApiClient:
         }
 
         response_data = self._make_request("POST", "/api/v1/chat/chat", json=chat_payload)
-        # Some servers wrap the core fields inside a 'payload' object
         payload = response_data.get("payload") or response_data
         return ChatResult(
             response=payload.get("response", ""),
