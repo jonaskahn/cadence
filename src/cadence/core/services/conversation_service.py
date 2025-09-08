@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional
 from cadence_sdk.base.loggable import Loggable
 from cadence_sdk.types.state import PluginContextFields, StateHelpers
 
-from sdk.src.cadence_sdk.types.state import AgentState, AgentStateFields
+from cadence_sdk.types.state import AgentState, AgentStateFields
 
 from ...domain.dtos.chat_dtos import ChatRequest, ChatResponse, TokenUsage
 from ...domain.models.conversation import Conversation
