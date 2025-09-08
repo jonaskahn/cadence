@@ -4,9 +4,16 @@ Provides multi-backend data persistence with repository pattern implementations,
 supporting PostgreSQL, Redis, and in-memory storage with optimized conversation handling.
 """
 
+from cadence.infrastructure.database.repositories.postgres.models import (
+    Base,
+    ConversationModel,
+    OrganizationModel,
+    ThreadModel,
+    UserModel,
+)
+
 from .connection import DatabaseConnectionManager, initialize_databases
 from .factory import DatabaseFactory
-from .models import Base, ConversationModel, OrganizationModel, ThreadModel, UserModel
 from .repositories import (
     ConversationRepository,
     InMemoryConversationRepository,

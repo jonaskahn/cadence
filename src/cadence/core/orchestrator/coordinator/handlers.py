@@ -4,13 +4,12 @@ import asyncio
 import json
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Union, get_args, get_origin
 
 from cadence_sdk.base.loggable import Loggable
 from cadence_sdk.types import AgentState
 from cadence_sdk.types.state import AgentStateFields, PluginContextFields, StateHelpers
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
-from langchain_core.runnables import Runnable
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolCall, ToolMessage
 
 from .enums import ResponseTone
 from .prompts import ConversationPrompts
@@ -66,33 +65,24 @@ class StructuredResponseHandler(Loggable):
                 return model.invoke(request_messages)
 
             structured_response = structured_model.invoke(request_messages)
-            return self._extract_synthesizer_response_content(structured_response, state, model, request_messages)
+            return self._extract_synthesizer_response_content(structured_response, model, request_messages)
 
         except Exception:
             return model.invoke(request_messages)
 
     @staticmethod
-    def _extract_synthesizer_response_content(
-        structured_response: Any, state: AgentState, model, request_messages: List
-    ) -> Any:
+    def _extract_synthesizer_response_content(structured_response: Any, model, request_messages: List) -> Any:
         """Extract synthesizer response content with additional data handling."""
         if not isinstance(structured_response, dict) or "response" not in structured_response:
             return model.invoke(request_messages)
 
+        brief_data = structured_response.get("brief_data", None)
         response_content = structured_response["response"]
-
-        if "additional_data" in structured_response:
-            additional_data = structured_response["additional_data"]
-            data_sources = list(additional_data.keys()) if isinstance(additional_data, dict) else []
-
-            plugin_context = StateHelpers.get_plugin_context(state)
-            plugin_context[PluginContextFields.SYNTHESIZER_OUTPUT] = {
-                "response": response_content,
-                "additional_data": additional_data,
-                "data_sources": data_sources,
-            }
-
-        return AIMessage(content=response_content)
+        data_sources = list(brief_data.keys()) if isinstance(brief_data, dict) else []
+        return AIMessage(
+            content=response_content,
+            additional_kwargs={"brief_data": brief_data, "data_sources": data_sources},
+        )
 
     def get_prompt_based_structured_synthesizer_response(
         self, request_messages: List, used_plugins: List[str], state: AgentState, model
@@ -105,15 +95,20 @@ class StructuredResponseHandler(Loggable):
                 if not used_plugins:
                     return model.invoke(request_messages)
                 model_binder = self.plugin_manager.get_model_binder()
-                final_response_schema = model_binder.collector.create_response_schema(used_plugins)
-                enhanced_messages = self._inject_schema_to_prompt(request_messages, final_response_schema)
+                default_response_schema = model_binder.collector.create_response_schema(used_plugins)
+                enhanced_messages = self._enhanced_message_with_response_schema_prompting(
+                    request_messages, default_response_schema, used_plugins
+                )
                 response = model.invoke(enhanced_messages)
                 parsed_response = self._parse_json_response(response)
                 if parsed_response:
-                    return self._extract_synthesizer_response_content(parsed_response, state, model, request_messages)
+                    return self._extract_synthesizer_response_content(parsed_response, model, request_messages)
                 else:
                     return response
             except Exception as e:
+                self.logger.warning(
+                    "Failed to inject schema to prompt based synthesizer response, but ignored", exc_info=e
+                )
                 if attempt < max_retries - 1:
                     self.logger.warning("Failed to inject schema to prompt based synthesizer response. Retrying...")
                     continue
@@ -122,73 +117,218 @@ class StructuredResponseHandler(Loggable):
                     return model.invoke(request_messages)
         return self.get_model_based_structured_synthesizer_response(state, model, request_messages)
 
-    def _inject_schema_to_prompt(self, request_messages: List, schema_class) -> List:
+    def _enhanced_message_with_response_schema_prompting(
+        self, request_messages: List[BaseMessage], schema_class, used_plugins: List[str] = None
+    ) -> List[BaseMessage]:
         """Inject JSON schema structure into the prompt."""
-        schema_description = self._generate_schema_description(schema_class)
+        if used_plugins is None or len(used_plugins) == 0:
+            return request_messages
 
+        schema_description = self._generate_schema_description(schema_class, used_plugins or [])
         schema_instruction = f"""
 Please respond with a valid JSON object following this exact structure:
 {schema_description}
-
-Your response must be valid JSON and include:
-- "response": Main response content in markdown format
-- "additional_data": Object with plugin-specific data arrays
-
-Example format:
-{
-    "response": "Your main response here",
-    "additional_data": {
-        "internet_browser": [
-            {
-            ...
-            },
-            {
-            ...
-            }
-        ]
-    }
-}
 """
         enhanced_messages = request_messages.copy()
-        schema_message = SystemMessage(content=schema_instruction)
-        enhanced_messages.insert(-1, schema_message)  # Insert before last user message
-
+        alter_system_message = SystemMessage(content="")
+        first_message = enhanced_messages.pop(0)
+        if isinstance(first_message, SystemMessage) or first_message.type == "system":
+            alter_system_message.content = f"""{first_message.content}\n{schema_instruction}"""
+        else:
+            alter_system_message.content = f"""{first_message.content}"""
+        enhanced_messages.insert(0, alter_system_message)
         return enhanced_messages
 
-    def _generate_schema_description(self, schema_class) -> str:
-        """Generate human-readable schema description from TypedDict."""
+    def _generate_schema_description(self, schema_class, used_plugins: List[str] = None) -> str:
+        """Generate detailed human-readable schema description from TypedDict."""
         try:
-            # Get type hints from the schema class
-            hints = getattr(schema_class, "__annotations__", {})
+            # Get the combined schema that includes plugin schemas
+            if hasattr(schema_class, "__annotations__"):
+                hints = schema_class.__annotations__
+            else:
+                return '{\n  "response": "string (required) (markdown) - Provide the full answer for current query, all required RESPONSE GUIDANCEs (if presented) must be presented here. " \n}'
 
             description_parts = []
             for field_name, field_type in hints.items():
-                description_parts.append(f'  "{field_name}": {self._format_type_hint(field_type)}')
+                formatted_field = self._format_field_with_description(field_name, field_type, used_plugins)
+                description_parts.append(f'  "{field_name}": {formatted_field}')
 
             return "{\n" + ",\n".join(description_parts) + "\n}"
-        except Exception:
-            return '{\n  "response": "string",\n  "additional_data": "object"\n}'
+        except Exception as e:
+            self.logger.warning(f"Failed to generate schema description: {e}")
+            return '{\n  "response": "string (required) (markdown) - Provide the full answer for current query, all required RESPONSE GUIDANCEs (if presented) must be presented here. " \n}'
 
-    def _format_type_hint(self, type_hint) -> str:
-        """Format type hint for schema description."""
-        if hasattr(type_hint, "__name__"):
-            return f'"{type_hint.__name__.lower()}"'
-        elif hasattr(type_hint, "__origin__"):
+    def _format_field_with_description(self, field_name: str, field_type, used_plugins: List[str] = None) -> str:
+        """Format field with type, requirement status, and description."""
+        try:
+            # Handle special cases for well-known fields
+            if field_name == "response":
+                return '"string (required) (markdown) - Provide the full answer for current query, all required RESPONSE GUIDANCEs (if presented) must be presented here. "'
+            elif field_name == "brief_data":
+                return self._format_brief_data_field(used_plugins)
+
+            # Extract type info and description from Annotated types
+            is_required, base_type, description = self._extract_field_info(field_type)
+            requirement_status = "required" if is_required else "optional"
+            type_str = self._format_type_hint(base_type)
+
+            if description:
+                return f"{type_str} ({requirement_status}) - {description}"
+            else:
+                return f"{type_str} ({requirement_status})"
+
+        except Exception:
+            return '"any (optional)"'
+
+    def _format_brief_data_field(self, used_plugins: List[str] = None) -> str:
+        """Format the brief_data field with plugin schemas."""
+        try:
+            if hasattr(self, "plugin_manager") and self.plugin_manager and used_plugins:
+                model_binder = self.plugin_manager.get_model_binder()
+                if hasattr(model_binder, "collector"):
+                    plugin_examples = self._get_plugin_schema_examples(used_plugins)
+                    if plugin_examples:
+                        return f"{{\n    {plugin_examples}\n  }}"
+
             return '"object"'
-        else:
+        except Exception:
+            return '"object"'
+
+    def _get_plugin_schema_examples(self, used_plugins: List[str] = None) -> str:
+        """Get example plugin schema structures for used plugins only."""
+        try:
+            model_binder = self.plugin_manager.get_model_binder()
+            plugin_schemas = {}
+
+            # Get schemas from plugin bundles, but only for used plugins
+            plugins_to_check = used_plugins if used_plugins else self.plugin_manager.plugin_bundles.keys()
+
+            for plugin_name in plugins_to_check:
+                plugin_bundle = self.plugin_manager.plugin_bundles.get(plugin_name)
+                if plugin_bundle and plugin_bundle.metadata.response_schema:
+                    schema_example = self._build_schema_example(plugin_bundle.metadata.response_schema)
+                    plugin_schemas[plugin_name] = f"[\n      {schema_example}\n    ]"
+
+            if plugin_schemas:
+                examples = []
+                for plugin_name, schema_str in plugin_schemas.items():
+                    examples.append(f'"{plugin_name}": {schema_str}')
+                return ",\n    ".join(examples)
+
+            # Fallback example - only if we have used plugins
+            if used_plugins:
+                return '"plugin_name": [\n      {\n        "field": "string (required) - Field description"\n      }\n    ]'
+            else:
+                return ""
+        except Exception:
+            if used_plugins:
+                return '"plugin_name": ["array of plugin response objects"]'
+            else:
+                return ""
+
+    def _build_schema_example(self, schema_class) -> str:
+        """Build a single schema example object."""
+        try:
+            if not hasattr(schema_class, "__annotations__"):
+                return '{\n        "data": "string (optional)"\n      }'
+
+            hints = schema_class.__annotations__
+            field_examples = []
+
+            for field_name, field_type in hints.items():
+                is_required, base_type, description = self._extract_field_info(field_type)
+                requirement_status = "required" if is_required else "optional"
+                type_str = self._format_type_hint(base_type).strip('"')
+
+                if description:
+                    field_desc = f"{type_str} ({requirement_status}) - {description}"
+                else:
+                    field_desc = f"{type_str} ({requirement_status})"
+
+                field_examples.append(f'        "{field_name}": "{field_desc}"')
+
+            return "{\n" + ",\n".join(field_examples) + "\n      }"
+
+        except Exception:
+            return '{\n        "data": "string (optional)"\n      }'
+
+    def _extract_field_info(self, field_type):
+        """Extract requirement status, base type, and description from field type."""
+        is_required = True
+        base_type = field_type
+        description = None
+
+        try:
+            # Handle Union types (Optional fields)
+            origin = get_origin(field_type)
+            if origin is Union:
+                args = get_args(field_type)
+                if type(None) in args:
+                    is_required = False
+                    # Get the non-None type
+                    base_type = next(arg for arg in args if arg is not type(None))
+
+            # Handle Annotated types to extract description
+            if hasattr(field_type, "__metadata__"):
+                # This is an Annotated type
+                if hasattr(field_type, "__origin__"):
+                    base_type = field_type.__origin__
+                elif hasattr(field_type, "__args__") and field_type.__args__:
+                    base_type = field_type.__args__[0]
+
+                # Extract description from metadata
+                metadata = getattr(field_type, "__metadata__", ())
+                for item in metadata:
+                    if isinstance(item, str) and len(item) > 10:  # Likely a description
+                        description = item
+                        break
+
+        except Exception:
+            pass
+
+        return is_required, base_type, description
+
+    @staticmethod
+    def _format_type_hint(type_hint) -> str:
+        """Format type hint for schema description."""
+        try:
+            if type_hint is str:
+                return '"string"'
+            elif type_hint is int:
+                return '"integer"'
+            elif type_hint is float:
+                return '"number"'
+            elif type_hint is bool:
+                return '"boolean"'
+            elif type_hint is list or get_origin(type_hint) is list:
+                return '"array"'
+            elif type_hint is dict or get_origin(type_hint) is dict:
+                return '"object"'
+            elif hasattr(type_hint, "__name__"):
+                name = type_hint.__name__.lower()
+                if name in ["str", "string"]:
+                    return '"string"'
+                elif name in ["int", "integer"]:
+                    return '"integer"'
+                elif name in ["float", "number"]:
+                    return '"number"'
+                elif name in ["bool", "boolean"]:
+                    return '"boolean"'
+                else:
+                    return f'"{name}"'
+            else:
+                return '"any"'
+        except Exception:
             return '"any"'
 
-    def _parse_json_response(self, response) -> Dict[str, Any]:
+    @staticmethod
+    def _parse_json_response(response) -> Dict[str, Any]:
         """Parse JSON from model response with multiple extraction strategies."""
         content = response.content if hasattr(response, "content") else str(response)
-
-        # Strategy 1: Direct JSON parsing
         try:
             return json.loads(content)
         except json.JSONDecodeError:
             pass
-
-        # Strategy 2: Extract JSON from markdown code blocks
         try:
             import re
 
@@ -198,7 +338,6 @@ Example format:
         except (json.JSONDecodeError, AttributeError):
             pass
 
-        # Strategy 3: Find JSON-like structure in text
         try:
             import re
 
@@ -324,11 +463,11 @@ class SynthesizerHandler(Loggable):
         synthesizer_prompt = self._create_synthesizer_prompt(tone_instruction, suggestions_text)
         request_messages = self._prepare_request_messages(synthesizer_prompt, messages)
         response = self._get_synthesize_response(request_messages, used_plugins, state, model)
-        response = self._normalize_response(response)
+        final_response = self._normalize_response(response)
 
         plugin_context = StateHelpers.get_plugin_context(state)
         updated_state = StateHelpers.update_plugin_context(state, **plugin_context)
-        return StateHelpers.create_state_update(response, StateHelpers.safe_get_agent_hops(state), updated_state)
+        return StateHelpers.create_state_update(final_response, StateHelpers.safe_get_agent_hops(state), updated_state)
 
     def _create_synthesizer_prompt(self, tone_instruction: str, suggestions_text: str) -> SystemMessage:
         """Create the synthesizer prompt with context."""
@@ -344,27 +483,53 @@ class SynthesizerHandler(Loggable):
         """Prepare request messages for synthesis."""
         if not self.settings.synthesizer_compact_messages:
             return [synthesizer_prompt] + messages
-
-        head_messages, compacted_context_msg = self._compact_messages_for_synthesizer(messages)
-        if compacted_context_msg is not None:
-            return [synthesizer_prompt] + head_messages + [compacted_context_msg]
+        if self.settings.synthesizer_compact_messages == "tool":
+            return self._compact_messages_for_synthesizer_in_tool(synthesizer_prompt, messages)
+        elif self.settings.synthesizer_compact_messages == "system":
+            return self._compact_messages_for_synthesizer_in_system(synthesizer_prompt, messages)
         else:
             return [synthesizer_prompt] + messages
 
-    def _compact_messages_for_synthesizer(self, messages: List[Any]) -> tuple[List[Any], Any]:
+    def _compact_messages_for_synthesizer_in_tool(self, synthesizer_prompt_message, messages: List[Any]) -> List[Any]:
         """Compact tool call/result chains after the last human message into one SystemMessage.
 
         Returns a tuple of (kept_messages_head, compacted_system_message_or_None).
         """
         if not messages:
-            return [], None
+            return []
 
         head, tail = self._split_messages_at_last_human(messages)
         if not tail:
-            return head, None
+            return head
 
         compacted_text = self._build_compacted_text(tail)
-        return head, SystemMessage(content=compacted_text, name="compacted_context_msg")
+        tool_call_id = str(uuid.uuid4())
+        return (
+            [synthesizer_prompt_message]
+            + head
+            + [
+                AIMessage(content="", tool_calls=[ToolCall(id=tool_call_id, name="execution", args={})]),
+                ToolMessage(tool_call_id=tool_call_id, content=compacted_text, name="execution"),
+            ]
+        )
+
+    def _compact_messages_for_synthesizer_in_system(self, synthesizer_prompt_message, messages: List[Any]) -> List[Any]:
+        """Compact tool call/result chains after the last human message into one SystemMessage.
+
+        Returns a tuple of (kept_messages_head, compacted_system_message_or_None).
+        """
+        if not messages:
+            return []
+
+        head, tail = self._split_messages_at_last_human(messages)
+        if not tail:
+            return head
+
+        compacted_text = self._build_compacted_text(tail)
+        synthesizer_prompt_message.content = (
+            f"""{synthesizer_prompt_message.content}. \nAdditional infor for current user query: {compacted_text}"""
+        )
+        return [synthesizer_prompt_message] + head
 
     @staticmethod
     def _split_messages_at_last_human(messages: List[Any]) -> tuple[List[Any], List[Any]]:
@@ -498,17 +663,17 @@ class TimeoutHandler:
             return coordinator_model.invoke(request_messages)
 
         try:
-            runnable = Runnable.from_function(coordinator_model.invoke)
             response = await asyncio.wait_for(
-                runnable.ainvoke(request_messages), timeout=self.settings.coordinator_invoke_timeout
+                coordinator_model.ainvoke(request_messages), timeout=self.settings.coordinator_invoke_timeout
             )
             return response
         except asyncio.TimeoutError:
-            return self._create_suspend_fallback_response()
+            return self._create_synthesize_fallback_response()
 
-    def _create_suspend_fallback_response(self) -> AIMessage:
+    @staticmethod
+    def _create_synthesize_fallback_response() -> AIMessage:
         """
-        Create a suspend fallback response when coordinator times out.
+        Create a synthesize fallback response when coordinator times out.
 
         Returns:
             AIMessage: Fake response with goto_synthesize tool call

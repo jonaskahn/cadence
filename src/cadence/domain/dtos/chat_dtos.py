@@ -48,7 +48,7 @@ class TokenUsage(BaseModel):
 class ChatResponse(BaseModel):
     """Chat response DTO with assistant response and metadata."""
 
-    response: str = Field(..., description="Assistant response content")
+    payload: object = Field(..., description="Assistant response content")
     thread_id: str = Field(..., description="Thread ID for this conversation")
     conversation_id: str = Field(..., description="Unique identifier for this conversation")
     token_usage: TokenUsage = Field(..., description="Token usage information")

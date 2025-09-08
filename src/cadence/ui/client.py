@@ -20,6 +20,7 @@ class ChatResult:
     thread_id: str
     conversation_id: str
     metadata: Dict[str, Any]
+    brief_data: Optional[Dict[str, Any]] = None
 
 
 @dataclass
@@ -93,11 +94,14 @@ class CadenceApiClient:
         }
 
         response_data = self._make_request("POST", "/api/v1/chat/chat", json=chat_payload)
+        # Some servers wrap the core fields inside a 'payload' object
+        payload = response_data.get("payload") or response_data
         return ChatResult(
-            response=response_data.get("response", ""),
+            response=payload.get("response", ""),
             thread_id=response_data.get("thread_id", thread_id or ""),
             conversation_id=response_data.get("conversation_id", ""),
             metadata=response_data.get("metadata", {}),
+            brief_data=payload.get("brief_data"),
         )
 
     def get_plugins(self) -> List[PluginInfo]:

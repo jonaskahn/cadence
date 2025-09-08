@@ -95,11 +95,12 @@ class ConversationService(Loggable):
 
         start_time = time.time()
         self.logger.debug(f"Processing message with orchestrator for thread {thread.thread_id}")
-        orchestrator_result = await self.orchestrator.ask(agent_state)
+        result = await self.orchestrator.ask(agent_state)
         processing_time = time.time() - start_time
 
-        response_text = self._extract_response_text(orchestrator_result)
-        processing_metadata = self._extract_processing_metadata(orchestrator_result)
+        response_text = self._extract_response_text(result)
+        additional_response_text = self._extract_additional_response_text(result)
+        processing_metadata = self._extract_processing_metadata(result)
 
         processing_metadata["processing_time"] = processing_time
 
@@ -110,6 +111,7 @@ class ConversationService(Loggable):
             thread_id=thread.thread_id,
             user_message=message,
             assistant_message=response_text,
+            assistant_context_message=str(additional_response_text),
             user_tokens=user_token_count,
             assistant_tokens=assistant_token_count,
             metadata={
@@ -126,8 +128,8 @@ class ConversationService(Loggable):
 
         self.logger.info(f"Completed message processing for thread {thread.thread_id}, conversation {conversation.id}")
 
-        return ChatResponse(
-            response=response_text,
+        chat_response = ChatResponse(
+            payload={"response": response_text, "brief_data": additional_response_text},
             thread_id=thread.thread_id,
             conversation_id=conversation.id,
             token_usage=TokenUsage(
@@ -147,7 +149,10 @@ class ConversationService(Loggable):
             },
         )
 
-    def _calculate_multi_agent(self, routing_history: List[str]) -> bool:
+        return chat_response
+
+    @staticmethod
+    def _calculate_multi_agent(routing_history: List[str]) -> bool:
         """Calculate if multiple different agents were used (only counting goto_ prefixed agents, excluding goto_synthesize)."""
         if not routing_history:
             return False
@@ -197,6 +202,25 @@ class ConversationService(Loggable):
                 return msg.content
 
         return "No response generated"
+
+    @staticmethod
+    def _extract_additional_response_text(orchestrator_result: Dict[str, Any]) -> str | None:
+        """Extract the final response text from orchestrator result.
+
+        Args:
+            orchestrator_result: Result from the orchestrator containing messages
+
+        Returns:
+            The final AI response text or default message if none found
+        """
+        from langchain_core.messages import AIMessage
+
+        messages = orchestrator_result.get(AgentStateFields.MESSAGES, [])
+        for msg in reversed(messages):
+            if isinstance(msg, AIMessage) and getattr(msg, "content", None):
+                return getattr(msg, "additional_kwargs", {}).get("brief_data")
+
+        return None
 
     @staticmethod
     def _extract_processing_metadata(orchestrator_result: Dict[str, Any]) -> Dict[str, Any]:

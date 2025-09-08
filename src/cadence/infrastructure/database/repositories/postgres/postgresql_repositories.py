@@ -12,12 +12,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .....domain.models.conversation import Conversation
 from .....domain.models.thread import Thread, ThreadStatus
-from ...models.conversation import ConversationModel
-from ...models.organization import OrganizationModel
-from ...models.thread import ThreadModel
-from ...models.user import UserModel
 from ..conversation_repository import ConversationRepository
 from ..thread_repository import ThreadRepository
+from .models.conversation import ConversationModel
+from .models.organization import OrganizationModel
+from .models.thread import ThreadModel
+from .models.user import UserModel
 
 
 class PostgreSQLThreadRepository(ThreadRepository):

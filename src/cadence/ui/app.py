@@ -126,6 +126,39 @@ def main():
                 opacity: 1;
             }
         }
+        
+        /* Brief data carousel styles */
+        .brief-card {
+            background: rgba(255,255,255,0.15);
+            border: 1px solid rgba(255,255,255,0.25);
+            border-radius: 12px;
+            padding: 12px;
+            margin: 6px 0;
+            height: 140px;
+            overflow: hidden;
+        }
+        .brief-title {
+            font-weight: 700;
+            font-size: 0.95rem;
+            margin-bottom: 6px;
+        }
+        .brief-desc {
+            font-size: 0.8rem;
+            color: #222;
+            opacity: 0.9;
+            height: 62px;
+            overflow: hidden;
+        }
+        .brief-link {
+            display: inline-block;
+            margin-top: 8px;
+            font-size: 0.85rem;
+            text-decoration: none;
+            color: #1a73e8;
+            background: rgba(26,115,232,0.08);
+            padding: 6px 10px;
+            border-radius: 8px;
+        }
     </style>
     """,
         unsafe_allow_html=True,
@@ -428,6 +461,35 @@ def display_chat_messages():
                 st.markdown(f"**AI Assistant**")
                 st.markdown(chat_message["content"])
 
+                # Render optional brief_data as UI enhancements
+                brief_data = chat_message.get("brief_data")
+                if brief_data and isinstance(brief_data, dict):
+                    internet_browser_items = brief_data.get("internet_browser")
+                    if isinstance(internet_browser_items, list) and len(internet_browser_items) > 0:
+                        st.markdown("**Suggested links**")
+                        # Horizontal carousel-like row using columns
+                        # Limit to first 5 items for brevity
+                        max_items = 5
+                        items = internet_browser_items[:max_items]
+                        num_cols = min(len(items), 5)
+                        if num_cols > 0:
+                            cols = st.columns(num_cols)
+                            for idx, item in enumerate(items):
+                                with cols[idx]:
+                                    try:
+                                        safe_item = item or {}
+                                        title = safe_item.get("title") or "Link"
+                                        description = safe_item.get("description") or ""
+                                        link = safe_item.get("link") or "#"
+                                        st.markdown(
+                                            f'<div class="brief-card"><div class="brief-title">{title}</div>'
+                                            f'<div class="brief-desc">{description}</div>'
+                                            f'<a class="brief-link" href="{link}" target="_blank">Open ↗</a></div>',
+                                            unsafe_allow_html=True,
+                                        )
+                                    except Exception:
+                                        st.empty()
+
                 if "metadata" in chat_message and chat_message["metadata"]:
                     metrics_tab, tools_tab, details_tab = st.tabs(["📊 Metrics", "🔧 Tools", "📋 Details"])
 
@@ -510,7 +572,14 @@ def get_ai_response(user_prompt: str, user_id: str, org_id: str, response_tone: 
                 st.session_state.conversation_id = chat_result.conversation_id
 
             st.session_state.messages.append(
-                {"role": "assistant", "content": chat_result.response, "metadata": chat_result.metadata}
+                {
+                    "role": "assistant",
+                    "content": (
+                        chat_result.response if isinstance(chat_result.response, str) else str(chat_result.response)
+                    ),
+                    "metadata": chat_result.metadata,
+                    "brief_data": getattr(chat_result, "brief_data", None),
+                }
             )
         else:
             st.error("❌ Failed to get response. Please check your connection.")

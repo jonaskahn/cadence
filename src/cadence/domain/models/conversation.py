@@ -17,6 +17,7 @@ class Conversation(BaseModel):
     thread_id: str | int = Field(description="Thread ID")
     user_message: str = Field(description="User input message")
     assistant_message: Optional[str] = Field(description="Assistant response message")
+    assistant_context_message: Optional[str] = Field(description="Additional assistant response message")
     user_tokens: Optional[int] = Field(default=0, description="User tokens")
     assistant_tokens: Optional[int] = Field(default=0, description="Assistant tokens")
     created_at: Optional[datetime] = Field(default_factory=datetime.utcnow, description="Created_at")
@@ -51,7 +52,13 @@ class Conversation(BaseModel):
 
     def to_langgraph_messages(self) -> list:
         """Convert to LangGraph message sequence."""
-        return [HumanMessage(content=self.user_message), AIMessage(content=self.assistant_message)]
+        if self.assistant_context_message:
+            return [
+                HumanMessage(content=self.user_message),
+                AIMessage(content=f"""{self.assistant_message}\n{self.assistant_context_message}"""),
+            ]
+        else:
+            return [HumanMessage(content=self.user_message), AIMessage(content=self.assistant_message)]
 
     def to_dict(self) -> dict:
         """Serialize to plain dictionary."""
@@ -74,6 +81,7 @@ class Conversation(BaseModel):
             thread_id=data["thread_id"],
             user_message=data["user_message"],
             assistant_message=data["assistant_message"],
+            assistant_context_message=data["assistant_context_message"],
             user_tokens=data["user_tokens"],
             assistant_tokens=data["assistant_tokens"],
             created_at=datetime.fromisoformat(data["created_at"]),

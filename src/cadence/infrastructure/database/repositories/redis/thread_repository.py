@@ -24,6 +24,25 @@ class RedisThreadRepository(ThreadRepository):
         self.ttl_seconds = ttl_days * 24 * 60 * 60
         self._setup_key_patterns()
 
+    def _decode_value(self, value: Any) -> Any:
+        """Decode a Redis-returned value if it is bytes."""
+        if isinstance(value, bytes):
+            try:
+                return value.decode("utf-8")
+            except Exception:
+                return value
+        return value
+
+    def _decode_dict(self, data: Dict[Any, Any]) -> Dict[str, Any]:
+        if not data:
+            return {}
+        return {self._decode_value(k): self._decode_value(v) for k, v in data.items()}
+
+    def _decode_iterable(self, items: Any) -> List[Any]:
+        if not items:
+            return []
+        return [self._decode_value(i) for i in list(items)]
+
     def _setup_key_patterns(self):
         """Setup Redis key patterns for consistent naming."""
         self.thread_key = "thread:{thread_id}"
@@ -112,6 +131,7 @@ class RedisThreadRepository(ThreadRepository):
         """Get thread by ID from Redis."""
         thread_key = self._get_thread_key(thread_id)
         thread_data = await self.redis.hgetall(thread_key)
+        thread_data = self._decode_dict(thread_data)
 
         if not thread_data:
             return None
@@ -201,16 +221,19 @@ class RedisThreadRepository(ThreadRepository):
         if user_id:
             user_key = self._get_user_threads_key(user_id)
             user_threads = await self.redis.smembers(user_key)
+            user_threads = set(self._decode_iterable(user_threads))
             thread_ids = set(user_threads) if not thread_ids else thread_ids.intersection(set(user_threads))
 
         if org_id:
             org_key = self._get_org_threads_key(org_id)
             org_threads = await self.redis.smembers(org_key)
+            org_threads = set(self._decode_iterable(org_threads))
             thread_ids = set(org_threads) if not thread_ids else thread_ids.intersection(set(org_threads))
 
         if status:
             status_key = self._get_status_threads_key(status)
             status_threads = await self.redis.smembers(status_key)
+            status_threads = set(self._decode_iterable(status_threads))
             thread_ids = set(status_threads) if not thread_ids else thread_ids.intersection(set(status_threads))
 
         if not thread_ids:
@@ -220,6 +243,7 @@ class RedisThreadRepository(ThreadRepository):
             sorted_thread_ids = await self.redis.zrevrange(sorted_key, 0, -1)
         else:
             sorted_thread_ids = await self.redis.zrange(sorted_key, 0, -1)
+        sorted_thread_ids = self._decode_iterable(sorted_thread_ids)
         filtered_ids = [tid for tid in sorted_thread_ids if tid in thread_ids]
         paginated_ids = filtered_ids[offset : offset + limit]
         threads = []

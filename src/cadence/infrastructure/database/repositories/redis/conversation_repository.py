@@ -27,6 +27,27 @@ class RedisConversationRepository(ConversationRepository):
         self.ttl_seconds = ttl_days * 24 * 60 * 60
         self._setup_key_patterns()
 
+    def _decode_value(self, value: Any) -> Any:
+        """Decode Redis byte strings to Python strings recursively where appropriate."""
+        if isinstance(value, bytes):
+            try:
+                return value.decode("utf-8")
+            except Exception:
+                return value
+        return value
+
+    def _decode_dict(self, data: Dict[Any, Any]) -> Dict[str, Any]:
+        """Decode a dictionary potentially containing byte keys/values from Redis."""
+        if not data:
+            return {}
+        return {self._decode_value(k): self._decode_value(v) for k, v in data.items()}
+
+    def _decode_iterable(self, items: Any) -> List[Any]:
+        """Decode an iterable of Redis values (e.g., set/list of ids)."""
+        if not items:
+            return []
+        return [self._decode_value(i) for i in list(items)]
+
     def _setup_key_patterns(self):
         """Setup Redis key patterns for consistent naming."""
         self.conversation_key = "conversation:{conversation_id}"
@@ -131,6 +152,7 @@ class RedisConversationRepository(ConversationRepository):
             "thread_id": str(conversation.thread_id),
             "user_message": conversation.user_message,
             "assistant_message": conversation.assistant_message or "",
+            "assistant_context_message": conversation.assistant_context_message or "",
             "user_tokens": str(conversation.user_tokens or 0),
             "assistant_tokens": str(conversation.assistant_tokens or 0),
             "created_at": conversation.created_at.isoformat(),
@@ -176,6 +198,7 @@ class RedisConversationRepository(ConversationRepository):
         """
         conversation_key = self._get_conversation_key(id)
         conversation_data = await self.redis.hgetall(conversation_key)
+        conversation_data = self._decode_dict(conversation_data)
 
         if not conversation_data:
             return None
@@ -221,6 +244,7 @@ class RedisConversationRepository(ConversationRepository):
         """
         thread_key = self._get_thread_conversations_key(thread_id)
         conversation_ids = await self.redis.smembers(thread_key)
+        conversation_ids = set(self._decode_iterable(conversation_ids))
 
         if not conversation_ids:
             return []
@@ -233,9 +257,14 @@ class RedisConversationRepository(ConversationRepository):
                 conversation_ids_with_scores = await self.redis.zrangebyscore(
                     sorted_key, 0, before_score, withscores=True
                 )
-                conversation_ids = [conv_id for conv_id, _ in conversation_ids_with_scores]
+                conversation_ids = set(
+                    [self._decode_value(conv_id) for conv_id, _ in conversation_ids_with_scores]
+                ).intersection(conversation_ids)
 
         conversation_ids_with_scores = await self.redis.zrevrange(sorted_key, 0, limit - 1, withscores=True)
+        conversation_ids_with_scores = [
+            (self._decode_value(conv_id), score) for conv_id, score in conversation_ids_with_scores
+        ]
 
         thread_conversation_ids = [
             conv_id for conv_id, _ in conversation_ids_with_scores if conv_id in conversation_ids

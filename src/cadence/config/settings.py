@@ -85,7 +85,7 @@ class OrchestratorSettings(BaseSettings):
         description="Max consecutive coordinator routes to agents (excluding synthesize) before suspend",
     )
     allowed_coordinator_terminate: bool = Field(
-        default=True,
+        default=False,
         description="Allow coordinator to terminate conversation directly without routing through synthesizer",
     )
     coordinator_parallel_tool_calls: bool = Field(
@@ -93,7 +93,7 @@ class OrchestratorSettings(BaseSettings):
     )
 
     coordinator_invoke_timeout: int = Field(
-        default=5, description="Timeout in seconds for coordinator invoke when not allowed to terminate"
+        default=3, description="Timeout in seconds for coordinator invoke when not allowed to terminate"
     )
 
     additional_coordinator_context: str = Field(
@@ -107,16 +107,19 @@ class OrchestratorSettings(BaseSettings):
     )
 
     use_structured_synthesizer: Optional[str] = Field(
-        default="prompt",
-        description="Structured synthesizer mode: 'model' for native structured output, 'prompt' for JSON parsing with backoff, None to disable",
+        default="model",
+        description="Structured synthesizer mode: 'model' for native structured output, 'prompt' for JSON parsing with backoff (BETA), None to disable",
     )
 
-    synthesizer_compact_messages: bool = Field(
-        default=True, description="Compact tool call/result chains before synthesizer to reduce confusion"
+    synthesizer_compact_messages: str = Field(
+        default="system",
+        description="Compact tool call/result chains before synthesizer to reduce confusion. Receive: system, tool, None",
     )
+
     synthesizer_compaction_max_chars: int = Field(
         default=6000, description="Max characters to include in compacted tool context"
     )
+
     synthesizer_compaction_header: str = Field(
         default="Context from tools and intermediate steps (compacted):",
         description="Header prefix for the compacted tool context block",
