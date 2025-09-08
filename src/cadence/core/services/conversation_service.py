@@ -9,9 +9,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from cadence_sdk.base.loggable import Loggable
-from cadence_sdk.types.state import PluginContextFields, StateHelpers
-
-from cadence_sdk.types.state import AgentState, AgentStateFields
+from cadence_sdk.types.state import AgentState, AgentStateFields, PluginContextFields, StateHelpers
 
 from ...domain.dtos.chat_dtos import ChatRequest, ChatResponse, TokenUsage
 from ...domain.models.conversation import Conversation
@@ -129,7 +127,7 @@ class ConversationService(Loggable):
         self.logger.info(f"Completed message processing for thread {thread.thread_id}, conversation {conversation.id}")
 
         chat_response = ChatResponse(
-            payload={"response": response_text, "brief_data": additional_response_text},
+            payload={"response": response_text, "related_data": additional_response_text},
             thread_id=thread.thread_id,
             conversation_id=conversation.id,
             token_usage=TokenUsage(
@@ -218,7 +216,7 @@ class ConversationService(Loggable):
         messages = orchestrator_result.get(AgentStateFields.MESSAGES, [])
         for msg in reversed(messages):
             if isinstance(msg, AIMessage) and getattr(msg, "content", None):
-                return getattr(msg, "additional_kwargs", {}).get("brief_data")
+                return getattr(msg, "additional_kwargs", {}).get("related_data")
 
         return None
 

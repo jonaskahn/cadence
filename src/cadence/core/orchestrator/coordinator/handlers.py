@@ -76,12 +76,12 @@ class StructuredResponseHandler(Loggable):
         if not isinstance(structured_response, dict) or "response" not in structured_response:
             return model.invoke(request_messages)
 
-        brief_data = structured_response.get("brief_data", None)
+        related_data = structured_response.get("related_data", None)
         response_content = structured_response["response"]
-        data_sources = list(brief_data.keys()) if isinstance(brief_data, dict) else []
+        data_sources = list(related_data.keys()) if isinstance(related_data, dict) else []
         return AIMessage(
             content=response_content,
-            additional_kwargs={"brief_data": brief_data, "data_sources": data_sources},
+            additional_kwargs={"related_data": related_data, "data_sources": data_sources},
         )
 
     def get_prompt_based_structured_synthesizer_response(
@@ -164,8 +164,8 @@ Please respond with a valid JSON object following this exact structure:
             # Handle special cases for well-known fields
             if field_name == "response":
                 return '"string (required) (markdown) - Provide the full answer for current query, all required RESPONSE GUIDANCEs (if presented) must be presented here. "'
-            elif field_name == "brief_data":
-                return self._format_brief_data_field(used_plugins)
+            elif field_name == "related_data":
+                return self._format_related_data_field(used_plugins)
 
             # Extract type info and description from Annotated types
             is_required, base_type, description = self._extract_field_info(field_type)
@@ -180,8 +180,8 @@ Please respond with a valid JSON object following this exact structure:
         except Exception:
             return '"any (optional)"'
 
-    def _format_brief_data_field(self, used_plugins: List[str] = None) -> str:
-        """Format the brief_data field with plugin schemas."""
+    def _format_related_data_field(self, used_plugins: List[str] = None) -> str:
+        """Format the related_data field with plugin schemas."""
         try:
             if hasattr(self, "plugin_manager") and self.plugin_manager and used_plugins:
                 model_binder = self.plugin_manager.get_model_binder()
@@ -397,11 +397,12 @@ class ResponseContextBuilder:
         return "\n".join(formatted_suggestions)
 
 
-class SuspendHandler:
+class SuspendHandler(Loggable):
     """Handles graceful conversation termination when hop limits are exceeded."""
 
     def __init__(self, plugin_manager, settings, context_builder):
         """Initialize with dependencies."""
+        super().__init__()
         self.plugin_manager = plugin_manager
         self.settings = settings
         self.context_builder = context_builder
@@ -508,8 +509,8 @@ class SynthesizerHandler(Loggable):
             [synthesizer_prompt_message]
             + head
             + [
-                AIMessage(content="", tool_calls=[ToolCall(id=tool_call_id, name="execution", args={})]),
-                ToolMessage(tool_call_id=tool_call_id, content=compacted_text, name="execution"),
+                AIMessage(content="", tool_calls=[ToolCall(id=tool_call_id, name="get_answer", args={})]),
+                ToolMessage(tool_call_id=tool_call_id, content=compacted_text, name="get_answer"),
             ]
         )
 
@@ -526,9 +527,7 @@ class SynthesizerHandler(Loggable):
             return head
 
         compacted_text = self._build_compacted_text(tail)
-        synthesizer_prompt_message.content = (
-            f"""{synthesizer_prompt_message.content}. \nAdditional infor for current user query: {compacted_text}"""
-        )
+        synthesizer_prompt_message.content = f"""{synthesizer_prompt_message.content}. \n*ADDITIONAL CONTEXT FOR CURRENT USER QUERY*:\n {compacted_text}"""
         return [synthesizer_prompt_message] + head
 
     @staticmethod

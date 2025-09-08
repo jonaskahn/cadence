@@ -52,8 +52,8 @@ Please provide a helpful response that addresses the user's query while explaini
 **SYSTEM STATE**:
 - Current Time (UTC): {current_time}
 
-**IMPORTANT**: Your role is to synthesize and present the information that agents have gathered.
-
-**RESPONSE GUIDANCE**:
+**RESPONSE REQUIREMENTS**:
 {plugin_suggestions}
+
+**IMPORTANT**: Your role is to synthesize and present the information that agents have gathered. **Never make up the answer if provided information by agents are not enough, or no agent execution, try to clarify user questions**
 """

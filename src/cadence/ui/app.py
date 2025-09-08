@@ -50,11 +50,21 @@ def main():
             margin-bottom: 1rem;
         }
         
+        .stMainBlockContainer {
+            max-width: 1024px !important;
+        }
+        
+        .stBottom > div > div {
+            max-width: 1024px !important;
+        }
+        
         /* Enhanced chat styling */
         .stChatMessage {
             border-radius: 15px;
             margin: 10px 0;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 100%;
         }
         
         .stChatMessage[data-testid="chat_message_user"] {
@@ -66,17 +76,42 @@ def main():
             background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
             color: white;
         }
+
+        /* Align inner text per role */
+        .stChatMessage[data-testid="chat_message_assistant"] .stMarkdown {
+            text-align: left;
+        }
+        .stChatMessage[data-testid="chat_message_user"] .stMarkdown {
+            text-align: right;
+        }
+
+        /* Inner message container horizontal padding */
+        .stChatMessage [data-testid="stVerticalBlock"] {
+            padding-left: 1rem !important;
+            padding-right: 1rem !important;
+        }
         
         /* Button enhancements */
         .stButton > button {
-            border-radius: 20px;
+            border-radius: 25px;
             border: none;
             transition: all 0.3s ease;
+            background-color: rgb(235 235 235 / 71%);
         }
         
         .stButton > button:hover {
             transform: translateY(-2px);
             box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+
+        /* Suggestion buttons inside assistant messages: light gray background */
+        .stChatMessage[data-testid="chat_message_assistant"] .stButton > button {
+            background-color: #f1f3f5 !important;
+            color: #111 !important;
+            border: 1px solid #e5e7eb !important;
+        }
+        .stChatMessage[data-testid="chat_message_assistant"] .stButton > button:hover {
+            background-color: #e9ecef !important;
         }
         
         /* Progress bar styling */
@@ -129,9 +164,9 @@ def main():
         
         /* Brief data carousel styles */
         .brief-card {
-            background: rgba(255,255,255,0.15);
+            background: rgb(235 235 235 / 71%);
             border: 1px solid rgba(255,255,255,0.25);
-            border-radius: 12px;
+            border-radius: 25px;
             padding: 12px;
             margin: 6px 0;
             height: 140px;
@@ -461,10 +496,10 @@ def display_chat_messages():
                 st.markdown(f"**AI Assistant**")
                 st.markdown(chat_message["content"])
 
-                # Render optional brief_data as UI enhancements
-                brief_data = chat_message.get("brief_data")
-                if brief_data and isinstance(brief_data, dict):
-                    browse_internet_items = brief_data.get("browse_internet")
+                # Render optional related_data as UI enhancements
+                related_data = chat_message.get("related_data")
+                if related_data and isinstance(related_data, dict):
+                    browse_internet_items = related_data.get("browse_internet")
                     if isinstance(browse_internet_items, list) and len(browse_internet_items) > 0:
                         st.markdown("**Suggested links**")
                         max_items = 5
@@ -576,7 +611,7 @@ def get_ai_response(user_prompt: str, user_id: str, org_id: str, response_tone: 
                         chat_result.response if isinstance(chat_result.response, str) else str(chat_result.response)
                     ),
                     "metadata": chat_result.metadata,
-                    "brief_data": getattr(chat_result, "brief_data", None),
+                    "related_data": getattr(chat_result, "related_data", None),
                 }
             )
         else:

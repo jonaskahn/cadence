@@ -12,23 +12,23 @@ class RuntimeSchemaCollector(Loggable):
     def __init__(self):
         super().__init__()
         self.plugin_schemas: Dict[str, Type[TypedDict]] = {}
-        self._union_cache: Dict[str, Type] = {}
+        self.union_cache: Dict[str, Type] = {}
 
     def register_plugin_schema(self, plugin_name: str, schema: Type[TypedDict]) -> None:
         """Register a plugin's response schema at runtime."""
         self.plugin_schemas[plugin_name] = schema
-        self._union_cache.clear()
+        self.union_cache.clear()
         self.logger.debug(f"Registered schema for plugin: {plugin_name}")
 
     def unregister_plugin_schema(self, plugin_name: str) -> None:
         """Remove a plugin's schema for plugin unloading."""
         if plugin_name in self.plugin_schemas:
             del self.plugin_schemas[plugin_name]
-            self._union_cache.clear()
+            self.union_cache.clear()
             self.logger.debug(f"Unregistered schema for plugin: {plugin_name}")
 
     @staticmethod
-    def _create_brief_data_mapping(relevant_schemas: Dict[str, Type[TypedDict]]) -> Type[TypedDict]:
+    def _create_related_data_mapping(relevant_schemas: Dict[str, Type[TypedDict]]) -> Type[TypedDict]:
         """Create a TypedDict where each key is a plugin name mapping to either List[schema] or schema.
 
         - If a plugin schema extends ListResponseSchema, the mapping value becomes List[schema].
@@ -62,14 +62,14 @@ class RuntimeSchemaCollector(Loggable):
 
     @staticmethod
     def extract_plugin_data(structured_response: Dict[str, Any], plugin_name: str) -> List[Dict[str, Any]]:
-        """Return list of items for a specific plugin from brief_data mapping."""
-        brief_data = structured_response.get("brief_data", {}) or {}
-        if isinstance(brief_data, dict):
-            items = brief_data.get(plugin_name, [])
+        """Return list of items for a specific plugin from related_data mapping."""
+        related_data = structured_response.get("related_data", {}) or {}
+        if isinstance(related_data, dict):
+            items = related_data.get(plugin_name, [])
             return items if isinstance(items, list) else []
         return []
 
-    def create_brief_data_schema(self, active_plugins: Optional[List[str]] = None) -> Type[TypedDict]:
+    def create_related_data_schema(self, active_plugins: Optional[List[str]] = None) -> Type[TypedDict]:
         """Create per-plugin mapping schema: { plugin_name: List[PluginSchema] }."""
         relevant_schemas = (
             {name: schema for name, schema in self.plugin_schemas.items() if name in active_plugins}
@@ -78,20 +78,20 @@ class RuntimeSchemaCollector(Loggable):
         )
 
         cache_key = "map_" + "_".join(sorted(relevant_schemas.keys())) if relevant_schemas else "map_empty"
-        if cache_key in self._union_cache:
-            return self._union_cache[cache_key]
+        if cache_key in self.union_cache:
+            return self.union_cache[cache_key]
 
-        brief_data_td = self._create_brief_data_mapping(relevant_schemas)
-        self._union_cache[cache_key] = brief_data_td
-        return brief_data_td
+        related_data_td = self._create_related_data_mapping(relevant_schemas)
+        self.union_cache[cache_key] = related_data_td
+        return related_data_td
 
     def create_response_schema(self, active_plugins: Optional[List[str]] = None) -> Type[TypedDict]:
-        """Create final response schema with per-plugin brief_data mapping."""
-        ADDITIONAL_RESPONSE_SCHEMA = self.create_brief_data_schema(active_plugins)
+        """Create final response schema with per-plugin related_data mapping."""
+        ADDITIONAL_RESPONSE_SCHEMA = self.create_related_data_schema(active_plugins)
 
         class DefaultResponseSchema(TypedDict):
             response: Annotated[str, "Main response content in markdown format"]
-            brief_data: ADDITIONAL_RESPONSE_SCHEMA
+            related_data: ADDITIONAL_RESPONSE_SCHEMA
 
         return DefaultResponseSchema
 
@@ -133,10 +133,10 @@ class DynamicModelBinder(Loggable):
         return self._bound_models[plugin_key], True
 
     def extract_plugin_data(self, structured_response: Dict[str, Any], plugin_name: str) -> List[Dict[str, Any]]:
-        """Return list of items for a specific plugin from brief_data mapping."""
+        """Return list of items for a specific plugin from related_data mapping."""
         return self.collector.extract_plugin_data(structured_response, plugin_name)
 
     def clear_cache(self) -> None:
         """Clear all cached bound models."""
         self._bound_models.clear()
-        self.collector._union_cache.clear()
+        self.collector.union_cache.clear()
