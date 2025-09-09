@@ -4,7 +4,7 @@ build-backend = "poetry.core.masonry.api"
 
 [project]
 name = "cadence"
-version = "1.2.0"
+version = "1.3.0"
 description = "Cadence AI - Multi-agent AI orchestration system with plugin management"
 authors = [
     { name = "Jonas Kahn", email = "me@ifelse.one" }
@@ -53,7 +53,8 @@ dependencies = [
     "greenlet>=3.2.4,<4.0.0",
     "rich>=14.1.0,<15.0.0",
     "python-multipart>=0.0.20,<0.0.21",
-    "click>=8.2.1,<9.0.0"
+    "click>=8.2.1,<9.0.0",
+    "cadence-sdk (>=1.3.0,<2.0.0)"
 ]
 
 [project.urls]
@@ -83,11 +84,11 @@ dev = [
 packages = [{ include = "cadence", from = "src" }]
 
 # FOR LOCAL DEVELOPMENT
-[tool.poetry.group.local]
-optional = true
-
-[tool.poetry.group.local.dependencies]
-cadence_sdk = { path = "./sdk", develop = true }
+#[tool.poetry.group.local]
+#optional = true
+#
+#[tool.poetry.group.local.dependencies]
+#cadence_sdk = { path = "./sdk", develop = true }
 
 [tool.poetry.group.docs]
 optional = true
@@ -95,11 +96,11 @@ optional = true
 [tool.poetry.group.docs.dependencies]
 linkchecker = ">=10.0.0"
 mkdocs = ">=1.5.0"
-mkdocs-git-revision-date-localized-plugin = ">=1.2.0"
+mkdocs-git-revision-date-localized-plugin = ">=1.3.0"
 mkdocs-material = ">=9.5.0"
 mkdocs-mermaid2-plugin = ">=1.2.1"
 mkdocs-minify-plugin = ">=0.7.0"
-mkdocs-redirects = ">=1.2.0"
+mkdocs-redirects = ">=1.1.0"
 pymdown-extensions = ">=10.0.0"
 
 
