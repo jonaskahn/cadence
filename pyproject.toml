@@ -4,7 +4,7 @@ build-backend = "poetry.core.masonry.api"
 
 [project]
 name = "cadence"
-version = "1.2.0"
+version = "1.3.0"
 description = "Cadence AI - Multi-agent AI orchestration system with plugin management"
 authors = [
     { name = "Jonas Kahn", email = "me@ifelse.one" }
@@ -95,11 +95,11 @@ optional = true
 [tool.poetry.group.docs.dependencies]
 linkchecker = ">=10.0.0"
 mkdocs = ">=1.5.0"
-mkdocs-git-revision-date-localized-plugin = ">=1.2.0"
+mkdocs-git-revision-date-localized-plugin = ">=1.3.0"
 mkdocs-material = ">=9.5.0"
 mkdocs-mermaid2-plugin = ">=1.2.1"
 mkdocs-minify-plugin = ">=0.7.0"
-mkdocs-redirects = ">=1.2.0"
+mkdocs-redirects = ">=1.3.0"
 pymdown-extensions = ">=10.0.0"
 
 

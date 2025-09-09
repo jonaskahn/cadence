@@ -75,7 +75,7 @@ class CadenceApplication:
         self.app = FastAPI(
             title="Cadence 🤖 Multi-agents AI Framework",
             description="A plugin-based multi-agent conversational AI framework",
-            version="1.2.0",
+            version="1.3.0",
             lifespan=lifespan_context,
         )
 
