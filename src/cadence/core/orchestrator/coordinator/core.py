@@ -91,6 +91,7 @@ class AgentCoordinator(Loggable):
             current_time=datetime.now(timezone.utc).isoformat(),
             additional_coordinator_context=self.settings.additional_coordinator_context,
         )
+
         request_messages = [SystemMessage(content=coordinator_prompt)] + messages
 
         coordinator_response = await self.timeout_handler.invoke_with_timeout(self.coordinator_model, request_messages)

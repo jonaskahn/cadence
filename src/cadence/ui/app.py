@@ -23,12 +23,15 @@ def render_chat_message(chat_message: dict):
 
 def get_ai_thinking_message():
     """Get simple AI thinking message like standard chatbots."""
-    return "AI is thinking..."
+    return "Thinking..."
 
 
 def main():
     """Main Streamlit application entry point."""
-    st.set_page_config(page_title="Cadence AI", page_icon="🤖", layout="centered", initial_sidebar_state="expanded")
+    import os
+
+    page_title = os.environ.get("CADENCE_UI_TITLE", "Cadence AI MultiAgent")
+    st.set_page_config(page_title=page_title, page_icon="🤖", layout="centered", initial_sidebar_state="expanded")
 
     st.markdown(
         """

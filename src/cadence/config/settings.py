@@ -245,7 +245,7 @@ class Settings(
     def get_default_provider_llm_model(provider: str) -> str:
         """Get the default model name for the configured LLM provider."""
         if provider == "openai":
-            return "gpt-4.1"
+            return "gpt-4o"
         elif provider == "anthropic":
             return "claude-3-5-sonnet-20241022"
         elif provider == "google":

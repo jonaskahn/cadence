@@ -2,11 +2,14 @@
 
 Cadence plugins are self-contained packages discovered via the SDK registry. Each plugin exposes:
 
-- **Metadata**: `name`, `version`, `description`, `capabilities`, `llm_requirements`, `dependencies`
+- **Metadata**: `name`, `version`, `description`, `capabilities`, `llm_requirements`, `dependencies`, `response_schema`,
+  `response_suggestion`
 - **Agent factory**: `create_agent() -> BaseAgent` (returns SDK BaseAgent instance)
 - **Tools**: LangChain `Tool` functions used by the agent (decorated with `@tool`)
 - **Validation**: `validate_dependencies() -> list[str]`
 - **Health checks**: `health_check() -> dict`
+- **Response schemas**: Optional structured response schemas using `@object_schema` and `@list_schema` decorators
+- **Response suggestions**: Optional response guidance for synthesizer and suspend nodes
 
 ## Plugin Bundle Lifecycle
 
@@ -123,6 +126,19 @@ When limits are reached, the coordinator routes to the suspend node which:
 - Synthesizes information gathered so far
 - Respects user's requested tone preference
 - Suggests how to continue the conversation
+- Incorporates plugin response suggestions for enhanced context
+- Uses structured response handling for consistent output format
+
+### Synthesizer Node Behavior
+
+The synthesizer node provides intelligent conversation synthesis:
+
+- **Structured Response Generation**: Uses model-based or prompt-based structured responses
+- **Plugin Schema Integration**: Automatically incorporates plugin response schemas
+- **Message Compaction**: Intelligently compacts tool call/result chains for efficiency
+- **Tone Adaptation**: Respects user's requested tone preference
+- **Plugin Suggestions**: Incorporates response suggestions from used plugins
+- **Response Context**: Builds comprehensive context from conversation history
 
 ## Plugin Discovery and Configuration
 
@@ -153,6 +169,9 @@ register_plugin(MyPlugin)
 ### Key Configuration Settings
 
 - `CADENCE_PLUGINS_DIR`: Plugin discovery directories
+- `CADENCE_ENABLE_DIRECTORY_PLUGINS`: Enable directory-based plugin discovery
 - `CADENCE_STORE_PLUGIN`: Uploaded plugin storage directory
 - `CADENCE_MAX_AGENT_HOPS`: Maximum agent switches per conversation
 - `CADENCE_COORDINATOR_CONSECUTIVE_AGENT_ROUTE_LIMIT`: Consecutive same-agent limit
+- `CADENCE_ALLOWED_COORDINATOR_TERMINATE`: Allow coordinator to terminate directly
+- `CADENCE_USE_STRUCTURED_SYNTHESIZER`: Enable structured synthesizer mode

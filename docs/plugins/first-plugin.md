@@ -92,7 +92,7 @@ class GreeterPlugin(BasePlugin):
                 "max_tokens": 256,
             },
             agent_type="specialized",
-            dependencies=[],
+            dependencies=["cadence_sdk>=1.3.0,<2.0.0"],
         )
 
     @staticmethod
@@ -115,7 +115,7 @@ CADENCE_PLUGINS_DIR=./plugins/src/cadence_example_plugins
 ```bash
 python -m cadence start all
 # In another terminal
-curl http://127.0.0.1:8000/api/v1/plugins
+curl http://127.0.0.1:8000/plugins/plugins
 ```
 
 You should see `greeter_agent` in the list.
@@ -123,7 +123,7 @@ You should see `greeter_agent` in the list.
 ## 7. Try it
 
 ```bash
-curl -X POST http://127.0.0.1:8000/api/v1/chat \
+curl -X POST http://127.0.0.1:8000/conversation/chat \
   -H "Content-Type: application/json" \
   -d '{"message": "Use greeter_agent to greet Alice", "tone": "natural"}'
 ```

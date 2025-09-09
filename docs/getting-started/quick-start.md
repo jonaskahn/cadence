@@ -4,7 +4,7 @@ Welcome to Cadence AI Framework! This guide will help you get up and running qui
 
 ## Prerequisites
 
-- Python 3.9+ (recommended: Python 3.11+)
+- Python 3.13+ (required)
 - API keys for your chosen LLM providers (OpenAI, Anthropic, Google AI, or Azure OpenAI)
 - Poetry (for development) or pip (for installation)
 
@@ -72,6 +72,7 @@ CADENCE_GOOGLE_API_KEY=your_gemini_api_key_here
 
 # Plugin Configuration
 CADENCE_PLUGINS_DIR=./plugins/src/cadence_example_plugins
+CADENCE_ENABLE_DIRECTORY_PLUGINS=true
 
 # Server Configuration
 CADENCE_API_HOST=0.0.0.0
@@ -79,7 +80,7 @@ CADENCE_API_PORT=8000
 
 # For production, you might want to use PostgreSQL
 CADENCE_CONVERSATION_STORAGE_BACKEND=postgresql
-CADENCE_POSTGRES_URL=postgresql://user:pass@localhost/cadence
+CADENCE_POSTGRES_URL=postgresql+asyncpg://user:pass@localhost/cadence
 
 # For development, you can use the built-in UI
 CADENCE_UI_HOST=0.0.0.0
@@ -156,7 +157,7 @@ python -m cadence start all
 1. **Send a test message**
 
    ```bash
-   curl -X POST "http://localhost:8000/api/v1/chat" \
+   curl -X POST "http://localhost:8000/conversation/chat" \
      -H "Content-Type: application/json" \
      -d '{
        "message": "Hello, Cadence!",
@@ -165,16 +166,44 @@ python -m cadence start all
      }'
    ```
 
-2. **Check available plugins**
+2. **Test advanced orchestrator features**
+
+   **Try different response tones:**
 
    ```bash
-   curl http://localhost:8000/api/v1/plugins
+   curl -X POST "http://localhost:8000/conversation/chat" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "message": "Explain quantum computing",
+       "user_id": "test-user",
+       "org_id": "test-org",
+       "metadata": {"tone": "explanatory"}
+     }'
    ```
 
-3. **Monitor system status**
+   **Test structured responses:**
 
    ```bash
-   curl http://localhost:8000/api/v1/system/status
+   curl -X POST "http://localhost:8000/conversation/chat" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "message": "Calculate 15 * 23 and explain the steps",
+       "user_id": "test-user",
+       "org_id": "test-org",
+       "metadata": {"tone": "learning"}
+     }'
+   ```
+
+3. **Check available plugins**
+
+   ```bash
+   curl http://localhost:8000/plugins/plugins
+   ```
+
+4. **Monitor system status**
+
+   ```bash
+   curl http://localhost:8000/system/status
    ```
 
 ## Development Mode
@@ -187,7 +216,7 @@ export CADENCE_API_PORT=8001
 export CADENCE_PLUGINS_DIR=./plugins/src/cadence_example_plugins
 
 # Verify your API keys are set
-cadence $CADENCE_OPENAI_API_KEY
+echo $CADENCE_OPENAI_API_KEY
 ```
 
 ## Troubleshooting

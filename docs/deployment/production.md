@@ -154,13 +154,13 @@ spec:
               cpu: "1000m"
           livenessProbe:
             httpGet:
-              path: /api/v1/health
+              path: /health
               port: 8000
             initialDelaySeconds: 30
             periodSeconds: 10
           readinessProbe:
             httpGet:
-              path: /api/v1/status
+              path: /system/status
               port: 8000
             initialDelaySeconds: 5
             periodSeconds: 5
@@ -169,7 +169,7 @@ spec:
           persistentVolumeClaim:
             claimName: cadence-plugins-pvc
         - name: logs
-          emptyDir: { }
+          emptyDir: {}
 ```
 
 ### 3. Traditional Server Deployment
@@ -430,13 +430,13 @@ sudo systemctl restart cadence
 sudo apt install apache2-utils
 
 # Run load test
-ab -n 1000 -c 10 http://localhost:8000/api/v1/status
+ab -n 1000 -c 10 http://localhost:8000/system/status
 
 # Install wrk for more advanced testing
 sudo apt install wrk
 
 # Run stress test
-wrk -t12 -c400 -d30s http://localhost:8000/api/v1/status
+wrk -t12 -c400 -d30s http://localhost:8000/system/status
 ```
 
 ### 2. Health Monitoring
@@ -452,7 +452,7 @@ tail -f /var/log/cadence/cadence.log
 journalctl -u cadence -f
 
 # Monitor API endpoints
-curl -f http://localhost:8000/api/v1/health
+curl -f http://localhost:8000/health
 ```
 
 ## Scaling Strategies

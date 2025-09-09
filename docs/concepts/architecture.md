@@ -96,25 +96,31 @@ flowchart TD
 The entry point for all external communication:
 
 - **REST API**: HTTP endpoints for synchronous operations
-- WebSocket support is not implemented in this version
+- **Endpoints**: `/conversation/chat`, `/plugins/plugins`, `/system/status`, `/health`
 - Authentication and rate limiting are not included by default
 - **CORS**: Cross-origin resource sharing configuration
 - **Validation**: Request/response validation with Pydantic
 
 ### 2. **Multi-Agent Orchestrator**
 
-The brain of the system that coordinates agent interactions:
+The brain of the system that coordinates agent interactions with advanced orchestration capabilities:
 
 - **Workflow Management**: LangGraph-based workflow orchestration with conditional routing
 - **Agent Routing**: Intelligent routing with consecutive agent limit protection and hop counting
-- **State Management**: Conversation state tracking with plugin context
+- **State Management**: Conversation state tracking with plugin context and routing history
 - **Safety Features**: Tool execution logging, message filtering, and circular routing prevention
-- **Dynamic Configuration**: Separate model configurations for coordinator, suspend, and finalizer roles
-- **Error Handling**: Graceful failure recovery with suspend node handling
+- **Dynamic Configuration**: Separate model configurations for coordinator, suspend, and synthesizer roles
+- **Error Handling**: Graceful failure recovery with suspend node handling and timeout management
 - **Performance Optimization**: Model caching and resource management through service container
-- **Suspend Node**: User-friendly hop limit handling with tone-aware messaging
+- **Suspend Node**: User-friendly hop limit handling with tone-aware messaging and plugin suggestions
+- **Synthesizer Node**: Intelligent conversation synthesis with structured response handling
 - **Tone Control**: Dynamic response style adaptation (natural, explanatory, formal, concise, learning)
-- **Routing Logic**: Simple decision logic based on tool call presence
+- **Routing Logic**: Advanced decision logic with tool call detection and routing validation
+- **Consecutive Agent Limits**: Prevents infinite loops with configurable consecutive routing limits
+- **Structured Responses**: Model-based and prompt-based structured response generation
+- **Response Context**: Plugin-aware response building with suggestions and metadata
+- **Timeout Handling**: Coordinator timeout protection with fallback responses
+- **Message Compaction**: Intelligent message compression for synthesizer efficiency
 
 ### 3. **Plugin Manager**
 
@@ -127,6 +133,7 @@ Handles the complete plugin lifecycle with management capabilities:
 - **Health Monitoring**: Plugin status monitoring and failure isolation
 - **Upload Management**: Dynamic plugin upload, extraction, and integration
 - **Dependency Resolution**: Automatic installation of plugin dependencies
+- **SDK Integration**: Seamless integration with the Cadence SDK for plugin development
 
 ### 4. **LLM Factory**
 

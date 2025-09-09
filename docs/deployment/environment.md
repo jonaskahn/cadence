@@ -15,10 +15,11 @@ Cadence supports multiple configuration methods:
 
 ### Application Settings
 
-| Variable           | Default                             | Description                                |
-|--------------------|-------------------------------------|--------------------------------------------|
-| `CADENCE_APP_NAME` | "Cadence Multi-agents AI Framework" | Application name displayed in logs and API |
-| `CADENCE_DEBUG`    | `false`                             | Enable debug mode                          |
+| Variable              | Default                                | Description                                         |
+|-----------------------|----------------------------------------|-----------------------------------------------------|
+| `CADENCE_APP_NAME`    | "Cadence 🤖 Multi-agents AI Framework" | Application name displayed in logs and API          |
+| `CADENCE_DEBUG`       | `false`                                | Enable debug mode                                   |
+| `CADENCE_ENVIRONMENT` | `development`                          | Environment name (development, production, testing) |
 
 ### UI Configuration
 
@@ -82,9 +83,11 @@ When using `azure-openai` (alias: `azure`) as the provider, configure the follow
 
 ### Plugin Configuration
 
-| Variable              | Default                                     | Description                                            |
-|-----------------------|---------------------------------------------|--------------------------------------------------------|
-| `CADENCE_PLUGINS_DIR` | `["./plugins/src/cadence_example_plugins"]` | Plugin directory path(s). Accepts a path or JSON list. |
+| Variable                           | Default                                     | Description                                            |
+|------------------------------------|---------------------------------------------|--------------------------------------------------------|
+| `CADENCE_PLUGINS_DIR`              | `["./plugins/src/cadence_example_plugins"]` | Plugin directory path(s). Accepts a path or JSON list. |
+| `CADENCE_ENABLE_DIRECTORY_PLUGINS` | `true`                                      | Enable directory-based plugin discovery                |
+| `CADENCE_STORAGE_ROOT`             | `"./storage"`                               | Root directory for plugin storage                      |
 
 Examples:
 
@@ -113,10 +116,17 @@ CADENCE_PLUGINS_DIR=["/abs/path/one", "/abs/path/two"]
 
 ### Processing Configuration
 
-| Variable                        | Default | Description                                                                  |
-|---------------------------------|---------|------------------------------------------------------------------------------|
-| `CADENCE_MAX_AGENT_HOPS`        | `25`    | Maximum agent switches before suspend/finalization                           |
-| `CADENCE_GRAPH_RECURSION_LIMIT` | `50`    | Maximum LangGraph steps per request (prevents graph recursion/infinite loop) |
+| Variable                                            | Default                                          | Description                                                                  |
+|-----------------------------------------------------|--------------------------------------------------|------------------------------------------------------------------------------|
+| `CADENCE_MAX_AGENT_HOPS`                            | `25`                                             | Maximum agent switches before suspend/finalization                           |
+| `CADENCE_GRAPH_RECURSION_LIMIT`                     | `50`                                             | Maximum LangGraph steps per request (prevents graph recursion/infinite loop) |
+| `CADENCE_COORDINATOR_CONSECUTIVE_AGENT_ROUTE_LIMIT` | `5`                                              | Max consecutive coordinator routes to agents before suspend                  |
+| `CADENCE_ALLOWED_COORDINATOR_TERMINATE`             | `false`                                          | Allow coordinator to terminate conversation directly                         |
+| `CADENCE_USE_STRUCTURED_SYNTHESIZER`                | `"model"`                                        | Structured synthesizer mode (model, prompt, None)                            |
+| `CADENCE_COORDINATOR_INVOKE_TIMEOUT`                | `30`                                             | Coordinator timeout in seconds before fallback response                      |
+| `CADENCE_SYNTHESIZER_COMPACT_MESSAGES`              | `None`                                           | Message compaction mode (tool, system, None)                                 |
+| `CADENCE_SYNTHESIZER_COMPACTION_HEADER`             | `"*ADDITIONAL CONTEXT FOR CURRENT USER QUERY*:"` | Header for compacted messages                                                |
+| `CADENCE_SYNTHESIZER_COMPACTION_MAX_CHARS`          | `10000`                                          | Maximum characters for compacted content                                     |
 
 ### Conversation Storage Configuration
 
@@ -274,6 +284,13 @@ CADENCE_MAX_SESSION_HISTORY=50
 # Processing Configuration
 CADENCE_MAX_AGENT_HOPS=25
 CADENCE_GRAPH_RECURSION_LIMIT=50
+CADENCE_COORDINATOR_CONSECUTIVE_AGENT_ROUTE_LIMIT=5
+CADENCE_ALLOWED_COORDINATOR_TERMINATE=false
+CADENCE_USE_STRUCTURED_SYNTHESIZER=model
+CADENCE_COORDINATOR_INVOKE_TIMEOUT=30
+CADENCE_SYNTHESIZER_COMPACT_MESSAGES=None
+CADENCE_SYNTHESIZER_COMPACTION_HEADER="*ADDITIONAL CONTEXT FOR CURRENT USER QUERY*:"
+CADENCE_SYNTHESIZER_COMPACTION_MAX_CHARS=10000
 
 # --- Azure OpenAI (alternative) ---
 # CADENCE_DEFAULT_LLM_PROVIDER=azure-openai
@@ -339,6 +356,13 @@ CADENCE_MAX_SESSION_HISTORY=100
 # Processing Configuration
 CADENCE_MAX_AGENT_HOPS=25
 CADENCE_GRAPH_RECURSION_LIMIT=50
+CADENCE_COORDINATOR_CONSECUTIVE_AGENT_ROUTE_LIMIT=5
+CADENCE_ALLOWED_COORDINATOR_TERMINATE=false
+CADENCE_USE_STRUCTURED_SYNTHESIZER=model
+CADENCE_COORDINATOR_INVOKE_TIMEOUT=30
+CADENCE_SYNTHESIZER_COMPACT_MESSAGES=None
+CADENCE_SYNTHESIZER_COMPACTION_HEADER="*ADDITIONAL CONTEXT FOR CURRENT USER QUERY*:"
+CADENCE_SYNTHESIZER_COMPACTION_MAX_CHARS=10000
 
 # --- Azure OpenAI (alternative) ---
 # CADENCE_DEFAULT_LLM_PROVIDER=azure-openai

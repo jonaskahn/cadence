@@ -133,6 +133,7 @@ sequenceDiagram
 ```python
 # Main imports - recommended approach
 from cadence_sdk import BasePlugin, PluginMetadata, BaseAgent, tool
+from cadence_sdk.decorators import object_schema, list_schema
 
 # Alternative specific imports if needed
 from cadence_sdk.base.plugin import BasePlugin
@@ -205,12 +206,14 @@ PluginMetadata(
     capabilities=["capability1", "capability2"],
     llm_requirements={
         "provider": "openai",
-        "model": "gpt-4",
+        "model": "gpt-4.1",
         "temperature": 0.1,
         "max_tokens": 1024
     },
     agent_type="specialized",
-    dependencies=["cadence_sdk>=1.0.2,<2.0.0"],
+    response_schema=MyResponseSchema,  # Optional
+    response_suggestion="When presenting results, use clear formatting...",  # Optional
+    dependencies=["cadence_sdk>=1.3.0,<2.0.0"],
 )
 ```
 
@@ -231,6 +234,15 @@ register_plugin(MathPlugin)
 
 ```python
 from cadence_sdk import BasePlugin, PluginMetadata
+from cadence_sdk.decorators import object_schema
+from typing import TypedDict, Annotated
+
+
+@object_schema
+class MathResponseSchema(TypedDict):
+    """Schema for math operation results."""
+    operation: Annotated[str, "The mathematical operation performed"]
+    result: Annotated[float, "The result of the calculation"]
 
 
 class MathPlugin(BasePlugin):
@@ -242,7 +254,15 @@ class MathPlugin(BasePlugin):
             description="Mathematical calculations and arithmetic operations agent",
             agent_type="specialized",
             capabilities=["addition", "subtraction", "multiplication", "division"],
-            dependencies=["cadence_sdk>=1.0.2,<2.0.0"],
+            response_schema=MathResponseSchema,
+            response_suggestion="When presenting mathematical results, always show the step-by-step calculation process.",
+            llm_requirements={
+                "provider": "openai",
+                "model": "gpt-4.1",
+                "temperature": 0.2,
+                "max_tokens": 1024,
+            },
+            dependencies=["cadence_sdk>=1.3.0,<2.0.0"],
         )
 
     @staticmethod
@@ -268,7 +288,7 @@ class MathAgent(BaseAgent):
         return math_tools
 
     def get_system_prompt(self) -> str:
-        return "You are a math agent specialized in mathematical operations."
+        return "You are a math agent specialized in mathematical operations. Always use the provided tools for calculations."
 ```
 
 ### `tools.py`

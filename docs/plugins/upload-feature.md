@@ -75,7 +75,7 @@ For programmatic plugin management, use the REST API endpoints:
 #### Upload Plugin
 
 ```bash
-curl -X POST "http://localhost:8000/api/v1/plugins/upload" \
+curl -X POST "http://localhost:8000/plugins/upload" \
   -H "Content-Type: multipart/form-data" \
   -F "file=@math_plugin-1.0.0.zip" \
   -F "force_overwrite=false"
@@ -100,7 +100,7 @@ curl -X POST "http://localhost:8000/api/v1/plugins/upload" \
 #### List Uploaded Plugins
 
 ```bash
-curl -X GET "http://localhost:8000/api/v1/plugins/uploaded"
+curl -X GET "http://localhost:8000/plugins/plugins"
 ```
 
 **Response:**
@@ -121,7 +121,7 @@ curl -X GET "http://localhost:8000/api/v1/plugins/uploaded"
 #### Delete Uploaded Plugin
 
 ```bash
-curl -X DELETE "http://localhost:8000/api/v1/plugins/uploaded/math_plugin/1.0.0"
+curl -X DELETE "http://localhost:8000/plugins/plugins/math_plugin"
 ```
 
 ## Plugin Storage
@@ -362,23 +362,23 @@ class MyAgent(BaseAgent):
 
 ### Upload Plugin
 
-- **Endpoint**: `POST /api/v1/plugins/upload`
+- **Endpoint**: `POST /plugins/upload`
 - **Content-Type**: `multipart/form-data`
 - **Parameters**: `file` (ZIP file), `force_overwrite` (boolean)
 
 ### List Uploaded Plugins
 
-- **Endpoint**: `GET /api/v1/plugins/uploaded`
+- **Endpoint**: `GET /plugins/plugins`
 - **Response**: List of uploaded plugin metadata
 
 ### Delete Plugin
 
-- **Endpoint**: `DELETE /api/v1/plugins/uploaded/{name}/{version}`
-- **Parameters**: `name` (plugin name), `version` (plugin version)
+- **Endpoint**: `DELETE /plugins/plugins/{name}`
+- **Parameters**: `name` (plugin name)
 
 ### Reload Plugins
 
-- **Endpoint**: `POST /api/v1/plugins/reload`
+- **Endpoint**: `POST /plugins/reload`
 - **Effect**: Reloads all plugins including uploaded ones
 
 ## Examples
@@ -393,7 +393,7 @@ with open('my_plugin-1.0.0.zip', 'rb') as f:
     files = {'file': f}
     data = {'force_overwrite': 'false'}
     response = requests.post(
-        'http://localhost:8000/api/v1/plugins/upload',
+        'http://localhost:8000/plugins/upload',
         files=files,
         data=data
     )
@@ -416,7 +416,7 @@ def upload_plugins_from_directory(directory):
                 files = {'file': f}
                 data = {'force_overwrite': 'true'}
                 response = requests.post(
-                    'http://localhost:8000/api/v1/plugins/upload',
+                    'http://localhost:8000/plugins/upload',
                     files=files,
                     data=data
                 )

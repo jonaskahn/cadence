@@ -107,28 +107,39 @@ flowchart TD
 ### 🤖 **Multi-Agent Orchestration**
 
 - Coordinate multiple AI agents in complex workflows with intelligent routing
-- LangGraph-based workflow orchestration with decision logic
+- LangGraph-based workflow orchestration with advanced decision logic
 - Automatic agent switching based on query content and context
+- Consecutive agent routing limits and hop count protection
+- Structured response handling with model-based and prompt-based modes
+- Intelligent message compaction for efficient conversation synthesis
+- Response tone control (natural, explanatory, formal, concise, learning)
+- Timeout handling with fallback responses
+- Plugin-aware response context building
 
 ### 🔌 **Plugin System**
 
 - Extend functionality without touching core code with dynamic plugin discovery
 - Hot reloading: Update plugins without restarting the system
 - Plugin upload and management via UI and API
-- SDK-based plugin development with validation
+- SDK-based plugin development with validation and health checks
+- Response schema support with `@object_schema` and `@list_schema` decorators
+- Plugin response suggestions for enhanced context
+- Structured response integration with plugin metadata
 
 ### 🧠 **LLM Provider Support**
 
 - Support for OpenAI, Anthropic, Google AI, and Azure OpenAI
-- Separate model configurations for coordinator, suspend, and finalizer roles
-- Model caching and provider fallback handling
+- Separate model configurations for coordinator, suspend, and synthesizer roles
+- Intelligent caching for LLM providers with fallback handling
 - Temperature and token control per plugin
+- Model factory with specialized configurations for different orchestration roles
+- Timeout handling and fallback response generation
 
 ### 🛠️ **Infrastructure**
 
 - Multi-backend storage: PostgreSQL, Redis, and in-memory support
 - Service container with dependency injection
-- Database factory pattern for backend-agnostic access
+- Repository pattern for backend-agnostic data access
 - Production-ready configuration management
 
 ### 🎨 **User Interface**
@@ -140,7 +151,7 @@ flowchart TD
 
 ### 📊 **Observability & Safety**
 
-- Logging with tool execution tracking
+- Comprehensive logging with tool execution tracking
 - Safety mechanisms: hop limits, message filtering, error handling
 - Health monitoring for plugins and system components
 - Conversation analytics and token usage tracking
@@ -155,7 +166,13 @@ flowchart TD
 ## Quick Example
 
 ```python
-from cadence_sdk import BasePlugin, PluginMetadata, BaseAgent
+from cadence_sdk import BasePlugin, PluginMetadata, BaseAgent, tool
+
+
+@tool
+def my_custom_tool(input_text: str) -> str:
+    """Process the input text and return a result."""
+    return f"Processed: {input_text}"
 
 
 class MyPlugin(BasePlugin):
@@ -166,6 +183,12 @@ class MyPlugin(BasePlugin):
             version="0.1.0",
             description="My custom AI agent",
             capabilities=["custom_task"],
+            llm_requirements={
+                "provider": "openai",
+                "model": "gpt-4.1",
+                "temperature": 0.1,
+                "max_tokens": 1024,
+            },
         )
 
     @staticmethod

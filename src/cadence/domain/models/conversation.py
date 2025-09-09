@@ -52,13 +52,19 @@ class Conversation(BaseModel):
 
     def to_langgraph_messages(self) -> list:
         """Convert to LangGraph message sequence."""
-        if self.assistant_context_message:
+        if (
+            self.assistant_context_message is None
+            or self.assistant_message.strip() == ""
+            or self.assistant_context_message == "None"
+        ):
+            return [HumanMessage(content=self.user_message), AIMessage(content=self.assistant_message)]
+        else:
             return [
                 HumanMessage(content=self.user_message),
-                AIMessage(content=f"""{self.assistant_message}\n{self.assistant_context_message}"""),
+                AIMessage(
+                    content=f"""{self.assistant_message}\n<!-- NEVER INCLUDE THIS IN FINAL ANSWER: {self.assistant_context_message} -->"""
+                ),
             ]
-        else:
-            return [HumanMessage(content=self.user_message), AIMessage(content=self.assistant_message)]
 
     def to_dict(self) -> dict:
         """Serialize to plain dictionary."""

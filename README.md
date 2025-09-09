@@ -1,20 +1,21 @@
 # Cadence 🤖 Multi-agents AI Framework
 
-A plugin-based multi-agent conversational AI framework built on FastAPI, designed for building intelligent chatbot
-systems with extensible the plugin/modularization architecture.
+A plugin-based multi-agent conversational AI framework built on FastAPI and LangGraph, designed for building intelligent
+chatbot systems with extensible plugin architecture and advanced orchestration capabilities.
 
 ![demo](https://github.com/user-attachments/assets/ba7ceb1d-3226-4634-8491-abf7fab04add)
 
 ## 🚀 Features
 
-- **Multi-Agent Orchestration**: Intelligent routing and coordination between AI agents
-- **Plugin System**: Extensible architecture for custom agents and tools
+- **Multi-Agent Orchestration**: Intelligent routing and coordination between AI agents using LangGraph
+- **Advanced Plugin System**: SDK-based plugin architecture with dynamic discovery and lifecycle management
 - **Parallel Tool Execution**: Concurrent tool calls for improved performance and efficiency
-- **Multi-LLM Support**: OpenAI, Anthropic, Google AI, and more
-- **Flexible Storage**: PostgreSQL, Redis, MongoDB, and in-memory backends
-- **REST API**: FastAPI-based API with automatic documentation
-- **Streamlit UI**: Built-in web interface for testing and management
+- **Multi-LLM Support**: OpenAI, Anthropic, Google AI, Azure OpenAI, and more with intelligent caching
+- **Flexible Storage**: PostgreSQL, Redis, and in-memory backends with repository pattern
+- **REST API**: FastAPI-based API with automatic documentation and comprehensive endpoints
+- **Streamlit UI**: Modern web interface with real-time chat and system monitoring
 - **Docker Support**: Containerized deployment with Docker Compose
+- **Advanced Configuration**: Environment-based configuration with validation and hot-reload
 
 ## 📦 Installation & Usage
 
@@ -57,17 +58,17 @@ python -m cadence start all
 # Show help
 python -m cadence --help
 
-# Show status
-python -m cadence status
+# Start services
+python -m cadence start api          # Start API server only
+python -m cadence start ui           # Start UI only
+python -m cadence start all          # Start both API and UI
+python -m cadence serve              # Alias for start api
 
-# Manage plugins
-python -m cadence plugins
-
-# Show configuration
-python -m cadence config
-
-# Health check
-python -m cadence health
+# Management commands
+python -m cadence status             # Show system status
+python -m cadence plugins            # Manage plugins
+python -m cadence config             # Show configuration
+python -m cadence health             # Health check
 ```
 
 ### 🛠️ For Developers (Build from Source)
@@ -76,7 +77,7 @@ If you want to contribute, develop plugins, or customize the framework:
 
 #### Prerequisites
 
-- Python 3.13+
+- Python 3.13+ (required)
 - Poetry (for dependency management)
 - Docker (optional, for containerized deployment)
 
@@ -123,24 +124,30 @@ CADENCE_ANTHROPIC_API_KEY=your-claude-key
 CADENCE_GOOGLE_API_KEY=your-gemini-key
 
 # Storage Configuration
-CADENCE_CONVERSATION_STORAGE_BACKEND=memory  # or postgresql
+CADENCE_CONVERSATION_STORAGE_BACKEND=memory  # or postgresql, redis
 CADENCE_POSTGRES_URL=postgresql://user:pass@localhost/cadence
+CADENCE_REDIS_URL=redis://localhost:6379
 
 # Plugin Configuration
-CADENCE_PLUGINS_DIR=["./plugins/src/cadence_plugins"]
+CADENCE_PLUGINS_DIR=["./plugins/src/cadence_example_plugins"]
+CADENCE_ENABLE_DIRECTORY_PLUGINS=true
 
 # Server Configuration
 CADENCE_API_HOST=0.0.0.0
 CADENCE_API_PORT=8000
 CADENCE_DEBUG=true
 
-# Advanced Configuration
+# Orchestrator Configuration
 CADENCE_MAX_AGENT_HOPS=25
 CADENCE_GRAPH_RECURSION_LIMIT=50
+CADENCE_COORDINATOR_CONSECUTIVE_AGENT_ROUTE_LIMIT=5
+CADENCE_ALLOWED_COORDINATOR_TERMINATE=false
 
-# Session Management
-CADENCE_SESSION_TIMEOUT=3600
-CADENCE_MAX_SESSION_HISTORY=100
+# Advanced LLM Configuration
+CADENCE_COORDINATOR_LLM_PROVIDER=openai
+CADENCE_SUSPEND_LLM_PROVIDER=openai
+CADENCE_SYNTHESIZER_LLM_PROVIDER=openai
+CADENCE_USE_STRUCTURED_SYNTHESIZER=model
 ```
 
 ### Configuration File
@@ -158,6 +165,7 @@ CADENCE_APP_NAME="Cadence 🤖 Multi-agents AI Framework"
 CADENCE_DEBUG=false
 
 CADENCE_PLUGINS_DIR=./plugins/src/cadence_example_plugins
+CADENCE_ENABLE_DIRECTORY_PLUGINS=true
 
 CADENCE_API_HOST=0.0.0.0
 CADENCE_API_PORT=8000
@@ -166,14 +174,17 @@ CADENCE_API_PORT=8000
 CADENCE_CONVERSATION_STORAGE_BACKEND=postgresql
 CADENCE_POSTGRES_URL=postgresql://user:pass@localhost/cadence
 
-# For development, you can use the built-in UI
-CADENCE_UI_HOST=0.0.0.0
-CADENCE_UI_PORT=8501
-
-# Plugin Configuration
-CADENCE_PLUGINS_DIR=./plugins/src/cadence_example_plugins
+# Orchestrator Configuration
 CADENCE_MAX_AGENT_HOPS=25
 CADENCE_GRAPH_RECURSION_LIMIT=50
+CADENCE_COORDINATOR_CONSECUTIVE_AGENT_ROUTE_LIMIT=5
+CADENCE_ALLOWED_COORDINATOR_TERMINATE=false
+
+# Advanced LLM Configuration
+CADENCE_COORDINATOR_LLM_PROVIDER=openai
+CADENCE_SUSPEND_LLM_PROVIDER=openai
+CADENCE_SYNTHESIZER_LLM_PROVIDER=openai
+CADENCE_USE_STRUCTURED_SYNTHESIZER=model
 
 # Parallel Tool Calls Configuration
 # Individual agents can control parallel tool execution in their constructor:
@@ -188,8 +199,14 @@ CADENCE_GRAPH_RECURSION_LIMIT=50
 Cadence provides a comprehensive CLI for management tasks:
 
 ```bash
-# Start the server
+# Start the API server
 python -m cadence start api --host 0.0.0.0 --port 8000
+
+# Start the UI
+python -m cadence start ui --port 8501
+
+# Start both API and UI
+python -m cadence start all
 
 # Show status
 python -m cadence status
@@ -211,14 +228,22 @@ The framework exposes a REST API for programmatic access:
 ```python
 import requests
 
-# Send a message
-response = requests.post("http://localhost:8000/api/v1/chat", json={
+# Send a message (using the conversation endpoint)
+response = requests.post("http://localhost:8000/conversation", json={
     "message": "Hello, how are you?",
     "user_id": "user123",
     "org_id": "org456"
 })
 
 print(response.json())
+
+# Get system status
+status_response = requests.get("http://localhost:8000/system/status")
+print(status_response.json())
+
+# List available plugins
+plugins_response = requests.get("http://localhost:8000/plugins/plugins")
+print(plugins_response.json())
 ```
 
 ### Plugin Development
@@ -296,15 +321,18 @@ def my_custom_tool(input_data: str) -> str:
 **Enhanced Features:**
 
 - **Intelligent Routing**: Agents automatically decide when to use tools or return to coordinator
-- **Fake Tool Calls**: Consistent routing flow even when agents answer directly
-- **No Circular Routing**: Eliminated infinite loops through proper edge configuration
-- **Better Debugging**: Clear routing decisions and comprehensive logging
+- **LangGraph Integration**: Built on LangGraph for robust conversation orchestration
+- **Dynamic Plugin Discovery**: Automatic discovery and loading of plugins from directories and pip packages
+- **Advanced Orchestration**: Coordinator, Suspend, and Synthesizer nodes for complex conversation flows
+- **Parallel Tool Execution**: Concurrent tool calls for improved performance
+- **Comprehensive Monitoring**: Health checks, status monitoring, and plugin management
 
 **Key Implementation Details:**
 
 - **`should_continue` is a static method**: Uses `@staticmethod` decorator
-- **Automatic fake tool calls**: The SDK automatically creates fake "back" tool calls when agents answer directly
-- **Consistent routing**: All responses go through the same flow regardless of whether tools are used
+- **SDK-based Architecture**: Uses cadence-sdk for plugin development and management
+- **Repository Pattern**: Clean separation of concerns with repository pattern for data access
+- **Multi-backend Support**: PostgreSQL, Redis, and in-memory storage backends
 
 ## 🐳 Docker Deployment
 
@@ -354,7 +382,10 @@ poetry run pytest -m "integration"
 
 - [Quick Start Guide](docs/getting-started/quick-start.md)
 - [Architecture Overview](docs/concepts/architecture.md)
+- [LangGraph Architecture](docs/concepts/langgraph-architecture.md)
+- [Plugin System](docs/concepts/plugin-system.md)
 - [Plugin Development](docs/plugins/overview.md)
+- [Upload Feature](docs/plugins/upload-feature.md)
 - [API Reference](docs/api/)
 - [Deployment Guide](docs/deployment/)
 
@@ -380,6 +411,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Powered by [LangChain](https://langchain.com/) and [LangGraph](https://langchain.com/langgraph) for AI orchestration
 - UI built with [Streamlit](https://streamlit.io/) for rapid development
 - Containerized with [Docker](https://www.docker.com/) for easy deployment
+- Plugin system built with [cadence-sdk](https://github.com/jonaskahn/cadence/tree/main/sdk) for extensibility
 
 ## 📞 Support
 

@@ -31,9 +31,9 @@ cadence/
 │  └─ __main__.py          # Module entry point (python -m cadence)
 │
 ├─ sdk/src/cadence_sdk/       # Cadence Plugin SDK
-│  ├─ base/                # BasePlugin, BasePluginAgent, PluginMetadata
+│  ├─ base/                # BasePlugin, BaseAgent, PluginMetadata
+│  ├─ decorators/          # Tool and schema decorators
 │  ├─ registry/            # Plugin registry, contracts, discovery
-│  ├─ tools/               # Tool decorators and registry
 │  ├─ types/               # AgentState and message types
 │  ├─ utils/               # Plugin discovery, validation, hybrid loading
 │  └─ examples/            # Template plugin implementation
@@ -59,8 +59,9 @@ cadence/
 
 ## Core entry points
 
-- Run server: `python -m cadence`
-- Run debug UI: `streamlit run src/cadence/ui/app.py`
+- Run server: `python -m cadence start api`
+- Run UI: `python -m cadence start ui`
+- Run both: `python -m cadence start all`
 - SDK imports: `from cadence_sdk import BasePlugin, PluginMetadata, BaseAgent, tool`
 - Plugins dir: configured via `CADENCE_PLUGINS_DIR` (default `./plugins/src/cadence_example_plugins`)
 

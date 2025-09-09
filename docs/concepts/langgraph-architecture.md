@@ -14,6 +14,7 @@ flexible and extensible.
 - [Decision Logic and Routing](#decision-logic-and-routing)
 - [Response Tone Control](#response-tone-control)
 - [Tool Execution Logging](#tool-execution-logging)
+- [Structured Response Handling](#structured-response-handling)
 - [Complete Conversation Flow](#complete-conversation-flow)
 - [Practical Examples](#practical-examples)
 - [Best Practices](#best-practices)
@@ -34,8 +35,9 @@ graph TB
         E[Coordinator Node] --> F[Control Tools Node]
         F --> G[Plugin Agent Nodes]
         G --> H[Plugin Tool Nodes]
-        H --> I[Finalizer Node]
+        H --> I[Synthesizer Node]
         E --> J[Suspend Node]
+        E --> K[Timeout Handler]
     end
 
     subgraph "Plugin Layer"
@@ -49,6 +51,8 @@ graph TB
         S[Plugin Manager] --> T[Graph Builder]
         U[ToolExecutionLogger] --> V[Agent Hop Counting]
         W[Message Filtering] --> X[Safety Validation]
+        Y[Structured Response Handler] --> Z[Response Context Builder]
+        AA[Model Factory] --> BB[Timeout Handler]
     end
 ```
 
@@ -88,8 +92,8 @@ graph LR
 
 - **Coordinator Node**: Main decision-making hub that analyzes user queries and routes to appropriate agents
 - **Control Tools Node**: Manages routing tools that direct conversation flow to specific plugin agents
-- **Suspend Node**: Handles graceful termination when hop limits are exceeded
-- **Finalizer Node**: Synthesizes conversation results into coherent final responses
+- **Suspend Node**: Handles graceful termination when hop limits are exceeded with tone-aware messaging
+- **Synthesizer Node**: Synthesizes conversation results into coherent final responses with structured handling
 
 ### Phase 3: Plugin Node Integration
 
@@ -291,6 +295,110 @@ self.tool_node = ToolNode(all_tools)  # Create ToolNode with all decorators
 - **Simple Implementation**: Just returns "back" string for routing
 - **ToolNode Integration**: Included in the ToolNode along with agent's tools
 - **Consistent Behavior**: All plugins have the same back tool functionality
+
+## Structured Response Handling
+
+The new orchestrator implementation includes sophisticated structured response handling capabilities that enhance the
+quality and consistency of conversation outputs.
+
+### Response Context Builder
+
+The `ResponseContextBuilder` prepares context for different conversation nodes:
+
+**Key Features:**
+
+- **Tone Instruction**: Extracts and formats tone preferences from conversation metadata
+- **Plugin Suggestions**: Collects response suggestions from plugins that were used during the conversation
+- **Used Plugins Tracking**: Maintains a list of plugins that participated in the conversation
+- **Context Preparation**: Builds comprehensive context for suspend and synthesizer nodes
+
+**Implementation:**
+
+```python
+def prepare_response_context(self, state: AgentState) -> tuple[str, list[str], str]:
+    """Prepare common response context for suspend and synthesizer nodes."""
+    metadata = StateHelpers.safe_get_metadata(state)
+    requested_tone = metadata.get("tone", "natural") or "natural"
+    tone_instruction = ResponseTone.get_description(requested_tone)
+
+    plugin_context = StateHelpers.get_plugin_context(state)
+    routing_history = plugin_context.get(PluginContextFields.ROUTING_HISTORY, [])
+    used_plugins = list(set(routing_history))
+
+    plugin_suggestions = self._collect_plugin_suggestions(used_plugins)
+    suggestions_text = self._format_plugin_suggestions(plugin_suggestions)
+
+    return tone_instruction, used_plugins, suggestions_text
+```
+
+### Structured Response Handler
+
+The `StructuredResponseHandler` provides multiple modes for generating structured responses:
+
+**Response Modes:**
+
+1. **Model-based**: Uses structured models with Pydantic schemas
+2. **Prompt-based**: Uses JSON schema prompting with retry logic
+3. **Fallback**: Direct model invocation when structured mode fails
+
+**Key Features:**
+
+- **Plugin Schema Integration**: Automatically incorporates plugin response schemas
+- **Retry Logic**: Implements backoff retry for prompt-based structured responses
+- **Response Extraction**: Extracts content from structured responses
+- **Error Handling**: Graceful fallback to direct model invocation
+
+### Response Tone System
+
+The system supports multiple response tones with detailed descriptions:
+
+**Available Tones:**
+
+- **Natural**: Friendly, conversational style with casual language
+- **Explanatory**: Detailed, educational explanations with examples
+- **Formal**: Professional, structured language with clear organization
+- **Concise**: Brief, to-the-point responses focusing on essentials
+- **Learning**: Teaching approach with step-by-step guidance
+
+**Tone Implementation:**
+
+```python
+class ResponseTone(Enum):
+    """Available response styles for conversation finalization."""
+
+    NATURAL = "natural"
+    EXPLANATORY = "explanatory"
+    FORMAL = "formal"
+    CONCISE = "concise"
+    LEARNING = "learning"
+
+    @property
+    def description(self) -> str:
+        """Return detailed description for this tone."""
+        descriptions = {
+            "natural": "Respond in a friendly, conversational way as if talking to a friend...",
+            "explanatory": "Provide detailed, educational explanations that help users understand concepts...",
+            # ... other tone descriptions
+        }
+        return descriptions.get(self.value, descriptions["natural"])
+```
+
+### Message Compaction
+
+The synthesizer includes intelligent message compaction for efficiency:
+
+**Compaction Modes:**
+
+- **Tool Mode**: Compacts tool call/result chains into a single system message
+- **System Mode**: Injects compacted content directly into the system prompt
+- **None**: No compaction, uses all messages as-is
+
+**Compaction Features:**
+
+- **Smart Splitting**: Splits messages at the last human message
+- **Content Truncation**: Limits compacted content to configurable character limits
+- **Tool Call Processing**: Handles AI messages with tool calls appropriately
+- **Result Summarization**: Summarizes tool results for context
 
 ## Suspend Node Implementation
 
