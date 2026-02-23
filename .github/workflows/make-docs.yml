@@ -1,0 +1,76 @@
+name: Docs
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - "mkdocs.yml"
+      - "docs"
+      - "docs/**"
+      - ".github/workflows/docs.yml"
+  pull_request:
+    branches: [ "main" ]
+    paths:
+      - "mkdocs.yml"
+      - "docs"
+      - "docs/**"
+  repository_dispatch:
+    types: [ "docs-updated" ]
+  workflow_dispatch:
+
+# Required for GitHub Pages deployment
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: "pip"
+
+      - name: Install Poetry
+        run: pipx install poetry
+
+      - name: Install docs dependencies
+        run: |
+          poetry --version
+          poetry install --no-root --no-interaction --no-ansi
+          poetry install --no-root --no-interaction --no-ansi --with docs
+
+      - name: Build docs site
+        run: poetry run zensical build
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./site
+
+  deploy:
+    if: github.event_name == 'push' || github.event_name == 'repository_dispatch' || github.event_name == 'workflow_dispatch'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

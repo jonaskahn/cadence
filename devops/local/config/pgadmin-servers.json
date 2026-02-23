@@ -1,0 +1,14 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "Cadence Local",
+      "Group": "Development",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "cadence_dev",
+      "Username": "cadence",
+      "SSLMode": "prefer",
+      "Comment": "Cadence local development database"
+    }
+  }
+}

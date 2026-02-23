@@ -1,0 +1,6 @@
+[submodule "ui"]
+	path = ui
+	url = https://github.com/jonaskahn/cadence-admin
+[submodule "sdk"]
+	path = sdk
+	url = https://github.com/jonaskahn/cadence-sdk

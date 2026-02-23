@@ -1,0 +1,214 @@
+site_name: Cadence 🤖 Multi-agents AI Framework
+site_description: A plugin-based multi-agent conversational AI framework built on FastAPI
+site_author: Jonas Kahn
+site_url: https://jonaskahn.github.io/cadence
+
+repo_name: jonaskahn/cadence
+repo_url: https://github.com/jonaskahn/cadence
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - navigation.indexes
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/toggle-switch
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/toggle-switch-off-outline
+        name: Switch to light mode
+  icon:
+    repo: fontawesome/brands/github
+    edit: material/pencil
+    view: material/eye
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/jonaskahn/cadence
+    - icon: fontawesome/brands/twitter
+      link: https://twitter.com/jonaskahn
+
+plugins:
+  - search
+  - git-revision-date-localized:
+      enable_creation_date: true
+
+markdown_extensions:
+  - admonition
+  - codehilite
+  - footnotes
+  - meta
+  - attr_list
+  - md_in_html
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.magiclink
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.snippets:
+      check_paths: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+  - toc:
+      permalink: true
+      title: On this page
+
+nav:
+  - Home: index.md
+
+  - Getting Started:
+    - Installation: getting-started/installation.md
+    - Quick Start: getting-started/quick-start.md
+    - Bootstrap: getting-started/bootstrap.md
+
+  - Architecture:
+    - Overview: architecture/overview.md
+    - Project Structure: architecture/project-structure.md
+    - Boot Sequence: architecture/boot-sequence.md
+    - Request Lifecycle: architecture/request-lifecycle.md
+    - Design Decisions: architecture/design-decisions.md
+
+  - Configuration:
+    - Settings Cascade: configuration/settings-cascade.md
+    - Environment Variables: configuration/environment.md
+    - Global Settings: configuration/global-settings.md
+    - Org Settings: configuration/org-settings.md
+    - Instance Config: configuration/instance-config.md
+    - LLM Providers: configuration/llm-providers.md
+
+  - Orchestration:
+    - Frameworks Overview: orchestration/frameworks-overview.md
+    - LangGraph: orchestration/langgraph.md
+    - OpenAI Agents SDK: orchestration/openai-agents.md
+    - Google ADK: orchestration/google-adk.md
+    - Supervisor Mode: orchestration/mode-supervisor.md
+    - Coordinator Mode: orchestration/mode-coordinator.md
+    - Handoff Mode: orchestration/mode-handoff.md
+    - Streaming: orchestration/streaming.md
+    - Conversation Context: orchestration/conversation-context.md
+    - Common Nodes: orchestration/common-nodes.md
+
+  - Plugin System:
+    - Overview: plugins/overview.md
+    - Plugin Lifecycle: plugins/lifecycle.md
+    - Plugin Catalog: plugins/catalog.md
+    - Upload & Storage: plugins/upload-storage.md
+
+  - Building Plugins:
+    - Your First Plugin: building-plugins/first-plugin.md
+    - Project Layout: building-plugins/project-layout.md
+    - Defining Tools: building-plugins/defining-tools.md
+    - Plugin Settings: building-plugins/plugin-settings.md
+    - Async Tools: building-plugins/async-tools.md
+    - Tool Caching: building-plugins/tool-caching.md
+    - Packaging: building-plugins/packaging.md
+    - Examples: building-plugins/examples.md
+
+  - SDK Reference:
+    - Overview: sdk/overview.md
+    - BaseAgent: sdk/base-agent.md
+    - BasePlugin: sdk/base-plugin.md
+    - PluginMetadata: sdk/plugin-metadata.md
+    - Message Types: sdk/message-types.md
+    - UvTool & @uvtool: sdk/uvtool.md
+    - CacheConfig: sdk/cache-config.md
+    - PluginRegistry: sdk/plugin-registry.md
+    - "@plugin_settings": sdk/plugin-settings-decorator.md
+    - State Management: sdk/state-management.md
+    - Utilities: sdk/utilities.md
+
+  - Multi-tenancy:
+    - Tenant Model: multitenancy/tenant-model.md
+    - Tenant Lifecycle: multitenancy/tenant-lifecycle.md
+    - Data Isolation: multitenancy/data-isolation.md
+    - BYOK: multitenancy/byok.md
+
+  - Infrastructure:
+    - PostgreSQL: infrastructure/postgresql.md
+    - MongoDB: infrastructure/mongodb.md
+    - Redis: infrastructure/redis.md
+    - RabbitMQ: infrastructure/rabbitmq.md
+    - S3 / MinIO: infrastructure/s3.md
+    - LLM Factory: infrastructure/llm-factory.md
+    - Semantic Cache: infrastructure/semantic-cache.md
+
+  - Pool Architecture:
+    - Overview: pool/architecture.md
+    - Tiers: pool/tiers.md
+    - Eviction & Pre-warming: pool/eviction-prewarming.md
+    - Hot Reload: pool/hot-reload.md
+
+  - Security:
+    - Auth Overview: security/auth-overview.md
+    - JWT & Sessions: security/jwt-sessions.md
+    - RBAC: security/rbac.md
+    - Rate Limiting: security/rate-limiting.md
+    - Middleware: security/middleware.md
+
+  - API Reference:
+    - Auth: api/auth.md
+    - Chat: api/chat.md
+    - Orchestrators: api/orchestrators.md
+    - Plugins: api/plugins.md
+    - System Plugins: api/system-plugins.md
+    - Tenants: api/tenants.md
+    - Admin: api/admin.md
+    - Errors: api/errors.md
+
+  - Deployment:
+    - Local Development: deployment/local.md
+    - Docker Compose: deployment/docker-compose.md
+    - Production: deployment/production.md
+    - Kubernetes: deployment/kubernetes.md
+    - Migrations: deployment/migrations.md
+    - High Availability: deployment/high-availability.md
+    - Environment Reference: deployment/environment.md
+
+  - Operations:
+    - Logging: operations/logging.md
+    - Monitoring: operations/monitoring.md
+    - Performance: operations/performance.md
+    - Troubleshooting: operations/troubleshooting.md
+    - Makefile Reference: operations/makefile.md
+
+  - Contributing:
+    - Development Setup: contributing/development.md
+    - Code Style: contributing/code-style.md
+    - Testing: contributing/testing.md

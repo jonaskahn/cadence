@@ -1,0 +1,54 @@
+"""Shared constants for Cadence framework."""
+
+# Type alias for setting values (JSON-serializable primitives)
+SettingValue = str | int | float | bool | dict | list | None
+
+DEFAULT_MAX_TOKENS = 2048
+DEFAULT_TEMPERATURE = 0.7
+DEFAULT_CONVERSATION_HISTORY_LIMIT = 50
+DEFAULT_MESSAGES_LIMIT = 100
+DEFAULT_MAX_TOOL_CHARS = 1000
+REDIS_SCAN_BATCH_SIZE = 100
+COLD_TIER_ENTRY_BYTES_ESTIMATE = 100
+WARM_TIER_ENTRY_BYTES_ESTIMATE = 3_000
+HOT_TIER_ENTRY_BYTES_ESTIMATE = 20_000_000
+BYTES_PER_MEGABYTE = 1024 * 1024
+DEFAULT_PREWARM_COUNT = 100
+
+# Rate limiting
+DEFAULT_RATE_LIMIT_WINDOW_SECONDS = 60
+DEFAULT_RATE_LIMIT_MAX_REQUESTS = 100
+
+# Plugin file handling
+PLUGIN_FILE_EXTENSION = ".zip"
+
+# Session management
+DEFAULT_SESSION_TTL_SECONDS = 1800
+
+# Semantic cache
+DEFAULT_SEMANTIC_CACHE_TTL = 3600
+DEFAULT_SEMANTIC_SIMILARITY_THRESHOLD = 0.85
+
+# Health monitoring
+HEALTH_MONITOR_INTERVAL_SECONDS = 60
+HEALTH_MONITOR_MAX_FAILURES = 3
+HEALTH_MONITOR_RECOVERY_INTERVAL = 300
+
+# Token estimation
+CHARS_PER_TOKEN = 4
+
+# LangGraph recursion limits
+RECURSION_LIMIT_BUFFER = 20
+
+# Environment names
+ENV_PRODUCTION = "production"
+ENV_DEVELOPMENT = "development"
+
+# Settings resolver tier names
+SETTINGS_TIER_INSTANCE = "instance"
+SETTINGS_TIER_ORG = "org"
+SETTINGS_TIER_GLOBAL = "global"
+
+# Production validation
+DEV_SECRET_KEY_PLACEHOLDER = "dev-secret-key-change-in-production"
+LOCALHOST = "localhost"

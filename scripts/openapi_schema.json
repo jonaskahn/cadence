@@ -1,0 +1,3362 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Cadence v2",
+    "description": "\n# Multi-Tenant AI Orchestration Platform\n\nProduction-ready framework for deploying AI agent orchestrators at scale.\n\n## Features\n\n* **Multi-Backend Support**: LangGraph, OpenAI Agents SDK, Google ADK\n* **Multi-Tenancy**: Complete tenant isolation with BYOK (Bring Your Own Key)\n* **Three Orchestration Modes**: Supervisor, Coordinator, Handoff\n* **Hot-Reload**: Configuration changes without restart\n* **Scalable Architecture**: Hot/Warm/Cold tier pool (1000+ instances)\n* **Streaming**: Server-Sent Events (SSE) for real-time responses\n\n## Authentication\n\n### JWT Authentication\n```\nAuthorization: Bearer <jwt_token>\n```\n\n### API Key Authentication\n```\nX-API-Key: <api_key>\n```\n\n## Rate Limiting\n\nAll API endpoints are rate-limited per tenant. Default: 100 requests/minute.\n\n## Documentation\n\n* Platform Docs: [README](https://github.com/jonaskahn/cadence)\n* SDK Docs: [cadence-sdk](https://github.com/jonaskahn/cadence-sdk)\n",
+    "version": "2.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8000",
+      "description": "Local development server"
+    },
+    {
+      "url": "https://api.example.com",
+      "description": "Production server"
+    },
+    {
+      "url": "https://staging-api.example.com",
+      "description": "Staging server"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "System Health Check",
+        "description": "Verifies system availability and database connectivity. Returns status of PostgreSQL, MongoDB, and Redis connections.",
+        "operationId": "health_check_health_get",
+        "responses": {
+          "200": {
+            "description": "System is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                },
+                "example": {
+                  "status": "healthy",
+                  "postgres": "connected",
+                  "redis": "connected",
+                  "mongodb": "connected"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "System is unhealthy",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "unhealthy",
+                  "error": "PostgreSQL connection failed"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Login",
+        "description": "Authenticate and receive a JWT.\n\nThe JWT carries only sub (user_id) and jti (ULID session key).\nOrg membership and role data live in Redis and are resolved per request.\n\nArgs:\n    login_request: Username and password\n    request: FastAPI request\n\nReturns:\n    LoginResponse with signed JWT\n\nRaises:\n    HTTPException: 401 if credentials are invalid",
+        "operationId": "login_api_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/logout": {
+      "delete": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Logout",
+        "description": "Revoke the current session token.\n\nArgs:\n    request: FastAPI request\n    context: Authenticated tenant context\n\nRaises:\n    HTTPException: If revocation fails",
+        "operationId": "logout_api_auth_logout_delete",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        }
+      }
+    },
+    "/api/me/profile": {
+      "patch": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Update My Profile",
+        "description": "Update the authenticated user's own password.\n\nUsername and email cannot be changed via this endpoint.\n\nArgs:\n    update_request: Current and new password\n    request: FastAPI request\n    context: Authenticated context\n\nRaises:\n    HTTPException: 401 if current password is wrong",
+        "operationId": "update_my_profile_api_me_profile_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProfileRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/me/orgs": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "List My Orgs",
+        "description": "List all organizations the authenticated user belongs to.\n\nUse the returned org_id as the path parameter for subsequent API calls.\n\nArgs:\n    request: FastAPI request\n    context: Authenticated tenant context\n\nReturns:\n    List of org memberships with role\n\nRaises:\n    HTTPException: If retrieval fails",
+        "operationId": "list_my_orgs_api_me_orgs_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/OrgAccessResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List My Orgs Api Me Orgs Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/orgs/{org_id}/completion/stream": {
+      "post": {
+        "tags": [
+          "completion"
+        ],
+        "summary": "Chat with AI (Streaming)",
+        "description": "Send a message to an AI orchestrator and receive a streaming response via Server-Sent Events (SSE).\n\n**Event Types:**\n- `agent_start`: Agent begins processing\n- `agent_end`: Agent completes processing\n- `tool_start`: Tool invocation begins\n- `tool_end`: Tool invocation completes\n- `message`: AI assistant message chunk\n- `error`: Error occurred\n- `metadata`: Additional metadata\n\n**Example SSE Response:**\n```\nevent: agent_start\ndata: {\"agent\": \"supervisor\", \"timestamp\": 1708234567.123}\n\nevent: tool_start\ndata: {\"tool\": \"weather_plugin.get_weather\", \"args\": {\"location\": \"San Francisco\"}}\n\nevent: tool_end\ndata: {\"tool\": \"weather_plugin.get_weather\", \"result\": \"Sunny, 72°F\"}\n\nevent: message\ndata: {\"content\": \"The weather in San Francisco is sunny with a temperature of 72°F.\"}\n\nevent: agent_end\ndata: {\"agent\": \"supervisor\", \"timestamp\": 1708234568.456}\n```",
+        "operationId": "chat_stream_api_orgs__org_id__completion_stream_post",
+        "parameters": [
+          {
+            "name": "org_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Org Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "SSE stream of chat events",
+            "content": {
+              "text/event-stream": {
+                "example": "event: message\ndata: {\"content\": \"Hello!\"}\n\n"
+              }
+            }
+          },
+          "403": {
+            "description": "Access denied to this orchestrator instance"
+          },
+          "404": {
+            "description": "Orchestrator instance not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/orgs/{org_id}/completion/chat": {
+      "post": {
+        "tags": [
+          "completion"
+        ],
+        "summary": "Chat with AI (Synchronous)",
+        "description": "Send a message to an AI orchestrator and wait for the complete response.\n\nUse this endpoint when you need the full response at once rather than streaming.\nFor real-time streaming responses, use the streaming endpoint instead.\n\n**Note:** This endpoint will wait until the orchestrator completes processing\nbefore returning. For long-running requests, consider using the streaming endpoint.",
+        "operationId": "chat_sync_api_orgs__org_id__completion_chat_post",
+        "parameters": [
+          {
+            "name": "org_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Org Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Complete chat response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatResponse"
+                },
+                "example": {
+                  "session_id": "conv_abc123xyz",
+                  "response": "The weather in San Francisco is sunny with a temperature of 72°F.",
+                  "agent_hops": 3,
+                  "current_agent": "weather_plugin"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Access denied to this orchestrator instance"
+          },
+          "404": {
+            "description": "Orchestrator instance not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/orgs/{org_id}/orchestrators": {
+      "post": {
+        "tags": [
+          "orchestrators"
+        ],
+        "summary": "Create Orchestrator Instance",
+        "description": "Create new orchestrator instance.\n\nBuilds plugin_settings from catalog defaults and computes config_hash.\nIf tier='hot', publishes a load event to RabbitMQ.",
+        "operationId": "create_orchestrator_api_orgs__org_id__orchestrators_post",
+        "parameters": [
+          {
+            "name": "org_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Org Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateOrchestratorRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrchestratorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "orchestrators"
+        ],
+        "summary": "List Orchestrators",
+        "description": "List all orchestrator instances for tenant.",
+        "operationId": "list_orchestrators_api_orgs__org_id__orchestrators_get",
+        "parameters": [
+          {
+            "name": "org_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Org Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OrchestratorResponse"
+                  },
+                  "title": "Response List Orchestrators Api Orgs  Org Id  Orchestrators Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/orgs/{org_id}/orchestrators/{instance_id}": {
+      "get": {
+        "tags": [
+          "orchestrators"
+        ],
+        "summary": "Get Orchestrator",
+        "description": "Get orchestrator instance details.",
+        "operationId": "get_orchestrator_api_orgs__org_id__orchestrators__instance_id__get",
+        "parameters": [
+          {
+            "name": "instance_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Instance Id"
+            }
+          },
+          {
+            "name": "org_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Org Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrchestratorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "orchestrators"
+        ],
+        "summary": "Delete Orchestrator",
+        "description": "Soft-delete orchestrator instance (sets status to 'deleted').",
+        "operationId": "delete_orchestrator_api_orgs__org_id__orchestrators__instance_id__delete",
+        "parameters": [
+          {
+            "name": "instance_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Instance Id"
+            }
+          },
+          {
+            "name": "org_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Org Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/orgs/{org_id}/orchestrators/{instance_id}/config": {
+      "patch": {
+        "tags": [
+          "orchestrators"
+        ],
+        "summary": "Update Orchestrator Config",
+        "description": "Update orchestrator configuration.\n\nRecomputes config_hash and publishes orchestrator.reload event.",
+        "operationId": "update_orchestrator_config_api_orgs__org_id__orchestrators__instance_id__config_patch",
+        "parameters": [
+          {
+            "name": "instance_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Instance Id"
+            }
+          },
+          {
+            "name": "org_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Org Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateOrchestratorConfigRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrchestratorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/orgs/{org_id}/orchestrators/{instance_id}/status": {
+      "patch": {
+        "tags": [
+          "orchestrators"
+        ],
+        "summary": "Update Orchestrator Status",
+        "description": "Update orchestrator status (active or suspended).",
+        "operationId": "update_orchestrator_status_api_orgs__org_id__orchestrators__instance_id__status_patch",
+        "parameters": [
+          {
+            "name": "instance_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Instance Id"
+            }
+          },
+          {
+            "name": "org_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Org Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateOrchestratorStatusRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrchestratorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/orgs/{org_id}/orchestrators/{instance_id}/load": {
+      "post": {
+        "tags": [
+          "orchestrators"
+        ],
+        "summary": "Load Orchestrator",
+        "description": "Fire-and-forget: publish orchestrator.load event.\n\nArgs:\n    instance_id: Instance ID\n    load_request: Optional load parameters (tier)\n    request: FastAPI request\n    context: Tenant context from JWT\n\nReturns:\n    202 Accepted",
+        "operationId": "load_orchestrator_api_orgs__org_id__orchestrators__instance_id__load_post",
+        "parameters": [
+          {
+            "name": "instance_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Instance Id"
+            }
+          },
+          {
+            "name": "org_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Org Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoadOrchestratorRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/orgs/{org_id}/orchestrators/{instance_id}/unload": {
+      "post": {
+        "tags": [
+          "orchestrators"
+        ],
+        "summary": "Unload Orchestrator",
+        "description": "Fire-and-forget: publish orchestrator.unload event.\n\nArgs:\n    instance_id: Instance ID\n    request: FastAPI request\n    context: Tenant context from JWT\n\nReturns:\n    202 Accepted",
+        "operationId": "unload_orchestrator_api_orgs__org_id__orchestrators__instance_id__unload_post",
+        "parameters": [
+          {
+            "name": "instance_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Instance Id"
+            }
+          },
+          {
+            "name": "org_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Org Id"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/orgs/{org_id}/orchestrators/{instance_id}/plugin-settings": {
+      "patch": {
+        "tags": [
+          "orchestrators"
+        ],
+        "summary": "Update Plugin Settings",
+        "description": "Partial update of plugin settings (merge into existing).\n\nRecomputes config_hash and publishes reload event if instance is hot.",
+        "operationId": "update_plugin_settings_api_orgs__org_id__orchestrators__instance_id__plugin_settings_patch",
+        "parameters": [
+          {
+            "name": "instance_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Instance Id"
+            }
+          },
+          {
+            "name": "org_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Org Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePluginSettingsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrchestratorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/orgs/{org_id}/orchestrators/{instance_id}/plugin-settings/sync": {
+      "put": {
+        "tags": [
+          "orchestrators"
+        ],
+        "summary": "Sync Plugin Settings",
+        "description": "Re-fetch latest default_settings for all active plugins and overwrite plugin_settings.\n\nUser customizations are lost. Recomputes config_hash and publishes reload if hot.",
+        "operationId": "sync_plugin_settings_api_orgs__org_id__orchestrators__instance_id__plugin_settings_sync_put",
+        "parameters": [
+          {
+            "name": "instance_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Instance Id"
+            }
+          },
+          {
+            "name": "org_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Org Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrchestratorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/orgs/{org_id}/plugins": {
+      "get": {
+        "tags": [
+          "plugins"
+        ],
+        "summary": "List Plugins",
+        "description": "List all available plugins for tenant (system + org combined).\n\nArgs:\n    request: FastAPI request\n    tag: Optional tag filter\n    context: Tenant context from JWT\n\nReturns:\n    List of plugin metadata",
+        "operationId": "list_plugins_api_orgs__org_id__plugins_get",
+        "parameters": [
+          {
+            "name": "tag",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Tag"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PluginMetadataResponse"
+                  },
+                  "title": "Response List Plugins Api Orgs  Org Id  Plugins Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/orgs/{org_id}/plugins/upload": {
+      "post": {
+        "tags": [
+          "plugins"
+        ],
+        "summary": "Upload Org Plugin",
+        "description": "Upload an org-specific plugin package.\n\nArgs:\n    file: Plugin zip file\n    request: FastAPI request\n    context: Tenant context from JWT\n\nReturns:\n    Upload confirmation with pid and version",
+        "operationId": "upload_org_plugin_api_orgs__org_id__plugins_upload_post",
+        "parameters": [
+          {
+            "name": "org_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Org Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_org_plugin_api_orgs__org_id__plugins_upload_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/orgs/{org_id}/plugins/{plugin_id}": {
+      "delete": {
+        "tags": [
+          "plugins"
+        ],
+        "summary": "Delete Org Plugin",
+        "description": "Soft-delete an org plugin.\n\nArgs:\n    plugin_id: Plugin database ID\n    request: FastAPI request\n    context: Tenant context from JWT",
+        "operationId": "delete_org_plugin_api_orgs__org_id__plugins__plugin_id__delete",
+        "parameters": [
+          {
+            "name": "plugin_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plugin Id"
+            }
+          },
+          {
+            "name": "org_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Org Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/orgs/{org_id}/plugins/{plugin_pid}/settings-schema": {
+      "get": {
+        "tags": [
+          "plugins"
+        ],
+        "summary": "Get Plugin Settings Schema",
+        "description": "Get plugin settings schema for dynamic UI generation.\n\nArgs:\n    plugin_pid: Reverse-domain plugin identifier\n    request: FastAPI request\n    context: Tenant context from JWT\n\nReturns:\n    Plugin settings schema",
+        "operationId": "get_plugin_settings_schema_api_orgs__org_id__plugins__plugin_pid__settings_schema_get",
+        "parameters": [
+          {
+            "name": "plugin_pid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Plugin Pid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PluginSettingSchema"
+                  },
+                  "title": "Response Get Plugin Settings Schema Api Orgs  Org Id  Plugins  Plugin Pid  Settings Schema Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/plugins": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "List System Plugins",
+        "description": "List all system plugins, optionally filtered by tag.\n\nArgs:\n    request: FastAPI request\n    tag: Optional tag filter\n    tenant_context: Tenant context from JWT\n\nReturns:\n    List of system plugin metadata",
+        "operationId": "list_system_plugins_api_admin_plugins_get",
+        "parameters": [
+          {
+            "name": "tag",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Tag"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SystemPluginResponse"
+                  },
+                  "title": "Response List System Plugins Api Admin Plugins Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/plugins/upload": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Upload System Plugin",
+        "description": "Upload a system plugin package.\n\nArgs:\n    file: Plugin zip file\n    request: FastAPI request\n    tenant_context: Tenant context from JWT\n\nReturns:\n    Upload confirmation with pid and version",
+        "operationId": "upload_system_plugin_api_admin_plugins_upload_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_system_plugin_api_admin_plugins_upload_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/plugins/{plugin_id}": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Get System Plugin",
+        "description": "Get a system plugin by ID.\n\nArgs:\n    plugin_id: Plugin database ID\n    request: FastAPI request\n    tenant_context: Tenant context from JWT\n\nReturns:\n    System plugin details",
+        "operationId": "get_system_plugin_api_admin_plugins__plugin_id__get",
+        "parameters": [
+          {
+            "name": "plugin_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plugin Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemPluginResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Soft Delete System Plugin",
+        "description": "Soft-delete a system plugin (sets is_active=False).\n\nArgs:\n    plugin_id: Plugin database ID\n    request: FastAPI request\n    tenant_context: Tenant context from JWT",
+        "operationId": "soft_delete_system_plugin_api_admin_plugins__plugin_id__delete",
+        "parameters": [
+          {
+            "name": "plugin_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plugin Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/orgs": {
+      "get": {
+        "tags": [
+          "tenants"
+        ],
+        "summary": "List Accessible Orgs",
+        "description": "List organizations visible to the caller.\n\nsys_admin receives all orgs with role='sys_admin'.\nRegular users receive only the orgs they belong to with their actual role.\n\nArgs:\n    request: FastAPI request\n    context: Any authenticated context\n\nReturns:\n    List of orgs with the caller's role in each\n\nRaises:\n    HTTPException: If retrieval fails",
+        "operationId": "list_accessible_orgs_api_orgs_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/OrgWithRoleResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Accessible Orgs Api Orgs Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/orgs": {
+      "get": {
+        "tags": [
+          "tenants"
+        ],
+        "summary": "List Organizations",
+        "description": "List all organizations (sys_admin only).\n\nArgs:\n    request: FastAPI request\n    context: sys_admin context\n\nReturns:\n    List of organizations\n\nRaises:\n    HTTPException: If retrieval fails",
+        "operationId": "list_organizations_api_admin_orgs_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/OrganizationResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Organizations Api Admin Orgs Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "tenants"
+        ],
+        "summary": "Create Organization",
+        "description": "Create a new organization.\n\nArgs:\n    create_request: Organization name\n    request: FastAPI request\n    context: sys_admin context\n\nReturns:\n    Created organization\n\nRaises:\n    HTTPException: If creation fails",
+        "operationId": "create_organization_api_admin_orgs_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateOrganizationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/orgs/{org_id}": {
+      "patch": {
+        "tags": [
+          "tenants"
+        ],
+        "summary": "Update Organization",
+        "description": "Update organization (sys_admin only).\n\nArgs:\n    org_id: Organization identifier\n    update_data: Fields to update\n    request: FastAPI request\n    context: sys_admin context\n\nReturns:\n    Updated organization\n\nRaises:\n    HTTPException: If not found or update fails",
+        "operationId": "update_organization_api_admin_orgs__org_id__patch",
+        "parameters": [
+          {
+            "name": "org_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Org Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "title": "Update Data"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/orgs/{org_id}/settings": {
+      "post": {
+        "tags": [
+          "tenants"
+        ],
+        "summary": "Set Tenant Setting",
+        "description": "Create or update an org setting.\n\nArgs:\n    org_id: Organization identifier\n    setting_request: Key/value to set\n    request: FastAPI request\n    context: org_admin or sys_admin context\n\nReturns:\n    Setting response\n\nRaises:\n    HTTPException: If operation fails",
+        "operationId": "set_tenant_setting_api_orgs__org_id__settings_post",
+        "parameters": [
+          {
+            "name": "org_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Org Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetTenantSettingRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantSettingResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "tenants"
+        ],
+        "summary": "List Tenant Settings",
+        "description": "List all org settings.\n\nArgs:\n    org_id: Organization identifier\n    request: FastAPI request\n    context: org_admin or sys_admin context\n\nReturns:\n    List of settings\n\nRaises:\n    HTTPException: If retrieval fails",
+        "operationId": "list_tenant_settings_api_orgs__org_id__settings_get",
+        "parameters": [
+          {
+            "name": "org_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Org Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TenantSettingResponse"
+                  },
+                  "title": "Response List Tenant Settings Api Orgs  Org Id  Settings Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/orgs/{org_id}/llm-configs": {
+      "post": {
+        "tags": [
+          "tenants"
+        ],
+        "summary": "Add Llm Config",
+        "description": "Add LLM configuration (BYOK).\n\nAccessible by org_admin only — sys_admin cannot read org API keys.\n\nArgs:\n    org_id: Organization identifier\n    config_request: LLM config details\n    request: FastAPI request\n    context: org_admin context\n\nReturns:\n    LLM config response (API key masked)\n\nRaises:\n    HTTPException: 403 if sys_admin, 500 on failure",
+        "operationId": "add_llm_config_api_orgs__org_id__llm_configs_post",
+        "parameters": [
+          {
+            "name": "org_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Org Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddLLMConfigRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LLMConfigResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "tenants"
+        ],
+        "summary": "List Llm Configs",
+        "description": "List LLM configurations (API key masked).\n\nAccessible by org_admin only — sys_admin cannot read org API keys.\n\nArgs:\n    org_id: Organization identifier\n    request: FastAPI request\n    context: org_admin context\n\nReturns:\n    List of LLM configs\n\nRaises:\n    HTTPException: 403 if sys_admin without org membership",
+        "operationId": "list_llm_configs_api_orgs__org_id__llm_configs_get",
+        "parameters": [
+          {
+            "name": "org_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Org Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LLMConfigResponse"
+                  },
+                  "title": "Response List Llm Configs Api Orgs  Org Id  Llm Configs Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/orgs/{org_id}/llm-configs/{config_name}": {
+      "delete": {
+        "tags": [
+          "tenants"
+        ],
+        "summary": "Delete Llm Config",
+        "description": "Soft-delete an LLM configuration.\n\nReturns 409 if the config is still referenced by active orchestrators.\n\nArgs:\n    org_id: Organization identifier\n    config_name: Config name to delete\n    request: FastAPI request\n    context: org_admin context\n\nRaises:\n    HTTPException: 404 if not found, 409 if in use",
+        "operationId": "delete_llm_config_api_orgs__org_id__llm_configs__config_name__delete",
+        "parameters": [
+          {
+            "name": "org_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Org Id"
+            }
+          },
+          {
+            "name": "config_name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Config Name"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/users": {
+      "post": {
+        "tags": [
+          "tenants"
+        ],
+        "summary": "Create User",
+        "description": "Create a new platform user (not assigned to any org).\n\nOnly sys_admin can create user accounts. Use the membership endpoints\nto assign the user to organizations afterward.\n\nArgs:\n    create_request: Username, email, and optional password\n    request: FastAPI request\n    context: sys_admin context\n\nReturns:\n    Created user\n\nRaises:\n    HTTPException: If creation fails",
+        "operationId": "create_user_api_admin_users_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUserRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserMembershipResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/orgs/{org_id}/users": {
+      "post": {
+        "tags": [
+          "tenants"
+        ],
+        "summary": "Create User In Org",
+        "description": "Create a new user and immediately add them to an org (sys_admin only).\n\nArgs:\n    org_id: Target organization identifier\n    create_request: User details\n    request: FastAPI request\n    context: sys_admin context\n\nReturns:\n    Created user with membership\n\nRaises:\n    HTTPException: If creation fails",
+        "operationId": "create_user_in_org_api_admin_orgs__org_id__users_post",
+        "parameters": [
+          {
+            "name": "org_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Org Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUserRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserMembershipResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/orgs/{org_id}/members": {
+      "post": {
+        "tags": [
+          "tenants"
+        ],
+        "summary": "Add Member To Org",
+        "description": "Add an existing user to this organization.\n\norg_admin can add any existing user. They cannot grant sys_admin.\n\nArgs:\n    org_id: Organization identifier\n    add_request: Existing user_id and desired is_admin flag\n    request: FastAPI request\n    context: org_admin or sys_admin context\n\nReturns:\n    User with new membership\n\nRaises:\n    HTTPException: 404 if user not found, 409 if already a member",
+        "operationId": "add_member_to_org_api_orgs__org_id__members_post",
+        "parameters": [
+          {
+            "name": "org_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Org Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddOrgMemberRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserMembershipResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/orgs/{org_id}/users": {
+      "get": {
+        "tags": [
+          "tenants"
+        ],
+        "summary": "List Org Users",
+        "description": "List all active members of an organization.\n\nArgs:\n    org_id: Organization identifier\n    request: FastAPI request\n    context: org_admin or sys_admin context\n\nReturns:\n    List of active user memberships\n\nRaises:\n    HTTPException: If retrieval fails",
+        "operationId": "list_org_users_api_orgs__org_id__users_get",
+        "parameters": [
+          {
+            "name": "org_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Org Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/UserMembershipResponse"
+                  },
+                  "title": "Response List Org Users Api Orgs  Org Id  Users Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/orgs/{org_id}/users/{user_id}/membership": {
+      "patch": {
+        "tags": [
+          "tenants"
+        ],
+        "summary": "Update User Membership",
+        "description": "Update a user's admin flag within this org.\n\nArgs:\n    org_id: Organization identifier\n    user_id: User identifier\n    membership_request: New is_admin value\n    request: FastAPI request\n    context: org_admin or sys_admin context\n\nReturns:\n    Updated membership response\n\nRaises:\n    HTTPException: 404 if membership not found",
+        "operationId": "update_user_membership_api_orgs__org_id__users__user_id__membership_patch",
+        "parameters": [
+          {
+            "name": "org_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Org Id"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMembershipRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserMembershipResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/orgs/{org_id}/users/{user_id}": {
+      "delete": {
+        "tags": [
+          "tenants"
+        ],
+        "summary": "Remove User From Org",
+        "description": "Remove a user from this organization (hard-delete membership).\n\nArgs:\n    org_id: Organization identifier\n    user_id: User identifier\n    request: FastAPI request\n    context: org_admin or sys_admin context\n\nRaises:\n    HTTPException: 404 if not found",
+        "operationId": "remove_user_from_org_api_orgs__org_id__users__user_id__delete",
+        "parameters": [
+          {
+            "name": "org_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Org Id"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/settings": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "List Global Settings",
+        "description": "List all global settings (Tier 2).\n\nArgs:\n    request: FastAPI request\n    tenant_context: Admin tenant context\n\nReturns:\n    List of global settings\n\nRaises:\n    HTTPException: If operation fails",
+        "operationId": "list_global_settings_api_admin_settings_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/GlobalSettingResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Global Settings Api Admin Settings Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/settings/{key}": {
+      "patch": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Update Global Setting",
+        "description": "Update global setting (Tier 2).\n\nArgs:\n    key: Setting key\n    update_request: New value\n    request: FastAPI request\n    tenant_context: Admin tenant context\n\nReturns:\n    Updated setting\n\nRaises:\n    HTTPException: If operation fails",
+        "operationId": "update_global_setting_api_admin_settings__key__patch",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateGlobalSettingRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GlobalSettingResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/health": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Health Check All",
+        "description": "Health check for all orchestrator instances.\n\nArgs:\n    request: FastAPI request\n    tenant_context: Admin tenant context\n\nReturns:\n    List of instance health statuses\n\nRaises:\n    HTTPException: If operation fails",
+        "operationId": "health_check_all_api_admin_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/HealthCheckResponse"
+                  },
+                  "type": "array",
+                  "title": "Response Health Check All Api Admin Health Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/pool/stats": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Get Pool Stats",
+        "description": "Get orchestrator pool statistics.\n\nArgs:\n    request: FastAPI request\n    tenant_context: Admin tenant context\n\nReturns:\n    Pool statistics\n\nRaises:\n    HTTPException: If operation fails",
+        "operationId": "get_pool_stats_api_admin_pool_stats_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PoolStatsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AddLLMConfigRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Name",
+            "description": "Config name (unique per org)"
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider",
+            "description": "Provider (openai/anthropic/google/groq/azure)"
+          },
+          "api_key": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Api Key",
+            "description": "API key"
+          },
+          "base_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Url",
+            "description": "Custom base URL"
+          },
+          "additional_config": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Additional Config",
+            "description": "Provider-specific extra settings (e.g. Azure api_version)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "provider",
+          "api_key"
+        ],
+        "title": "AddLLMConfigRequest",
+        "description": "Add LLM config request."
+      },
+      "AddOrgMemberRequest": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "User Id",
+            "description": "Existing user identifier"
+          },
+          "is_admin": {
+            "type": "boolean",
+            "title": "Is Admin",
+            "description": "Grant admin rights in this org",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id"
+        ],
+        "title": "AddOrgMemberRequest",
+        "description": "Add existing user to an org (org_admin or sys_admin)."
+      },
+      "Body_upload_org_plugin_api_orgs__org_id__plugins_upload_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_org_plugin_api_orgs__org_id__plugins_upload_post"
+      },
+      "Body_upload_system_plugin_api_admin_plugins_upload_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_system_plugin_api_admin_plugins_upload_post"
+      },
+      "ChatRequest": {
+        "properties": {
+          "instance_id": {
+            "type": "string",
+            "title": "Instance Id",
+            "description": "Orchestrator instance identifier",
+            "example": "550e8400-e29b-41d4-a716-446655440000"
+          },
+          "message": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Message",
+            "description": "User message",
+            "example": "What is the weather in San Francisco?"
+          },
+          "conversation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conversation Id",
+            "description": "Conversation ID for maintaining context",
+            "example": "conv_abc123xyz"
+          }
+        },
+        "type": "object",
+        "required": [
+          "instance_id",
+          "message"
+        ],
+        "title": "ChatRequest",
+        "description": "Chat request payload.\n\nAttributes:\n    instance_id: Orchestrator instance ID\n    message: User message text\n    conversation_id: Optional conversation ID",
+        "example": {
+          "conversation_id": "conv_abc123xyz",
+          "instance_id": "550e8400-e29b-41d4-a716-446655440000",
+          "message": "What is the weather in San Francisco?"
+        }
+      },
+      "ChatResponse": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "title": "Session Id",
+            "description": "Conversation session ID",
+            "example": "conv_abc123xyz"
+          },
+          "response": {
+            "type": "string",
+            "title": "Response",
+            "description": "AI assistant response",
+            "example": "The weather in San Francisco is sunny with a temperature of 72°F."
+          },
+          "agent_hops": {
+            "type": "integer",
+            "title": "Agent Hops",
+            "description": "Number of agent routing hops",
+            "example": 3
+          },
+          "current_agent": {
+            "type": "string",
+            "title": "Current Agent",
+            "description": "Last agent that processed the request",
+            "example": "weather_plugin"
+          }
+        },
+        "type": "object",
+        "required": [
+          "session_id",
+          "response",
+          "agent_hops",
+          "current_agent"
+        ],
+        "title": "ChatResponse",
+        "description": "Chat response payload for synchronous endpoint.\n\nAttributes:\n    session_id: Conversation session ID\n    response: AI response text\n    agent_hops: Number of agent hops executed\n    current_agent: Last agent that processed the request",
+        "example": {
+          "agent_hops": 3,
+          "current_agent": "weather_plugin",
+          "response": "The weather in San Francisco is sunny with a temperature of 72°F.",
+          "session_id": "conv_abc123xyz"
+        }
+      },
+      "CreateOrchestratorRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Name",
+            "description": "Instance name",
+            "example": "customer-support"
+          },
+          "framework_type": {
+            "type": "string",
+            "pattern": "^(langgraph|openai_agents|google_adk)$",
+            "title": "Framework Type",
+            "description": "Orchestration framework — immutable after creation",
+            "example": "langgraph"
+          },
+          "mode": {
+            "type": "string",
+            "pattern": "^(supervisor|coordinator|handoff)$",
+            "title": "Mode",
+            "description": "Orchestration mode — immutable after creation",
+            "example": "supervisor"
+          },
+          "active_plugins": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Active Plugins",
+            "description": "List of plugin PIDs to activate. Use plain 'pid' for latest or 'pid@version' to pin.",
+            "example": [
+              "com.example.search",
+              "com.example.math@1.2.3"
+            ]
+          },
+          "tier": {
+            "type": "string",
+            "pattern": "^(hot|warm|cold)$",
+            "title": "Tier",
+            "description": "Pool tier — hot instances are loaded immediately",
+            "default": "cold"
+          },
+          "config": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Config",
+            "description": "Mutable instance-specific configuration (Tier 4 settings)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "framework_type",
+          "mode",
+          "active_plugins"
+        ],
+        "title": "CreateOrchestratorRequest",
+        "description": "Create orchestrator instance request.",
+        "example": {
+          "active_plugins": [
+            "com.example.search"
+          ],
+          "config": {
+            "max_agent_hops": 10,
+            "primary_model": {
+              "llm_config_name": "primary",
+              "model_name": "gpt-4",
+              "temperature": 0.7
+            }
+          },
+          "framework_type": "langgraph",
+          "mode": "supervisor",
+          "name": "customer-support",
+          "tier": "cold"
+        }
+      },
+      "CreateOrganizationRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Name",
+            "description": "Organization name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "CreateOrganizationRequest",
+        "description": "Create organization request."
+      },
+      "CreateUserRequest": {
+        "properties": {
+          "username": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Username",
+            "description": "Username"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email",
+            "description": "Email address"
+          },
+          "password": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password",
+            "description": "Initial password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "username"
+        ],
+        "title": "CreateUserRequest",
+        "description": "Create user request (sys_admin only — creates a platform-level user)."
+      },
+      "GlobalSettingResponse": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "value": {
+            "title": "Value"
+          },
+          "value_type": {
+            "type": "string",
+            "title": "Value Type"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "value",
+          "value_type",
+          "description"
+        ],
+        "title": "GlobalSettingResponse",
+        "description": "Global setting response (Tier 2).\n\nAttributes:\n    key: Setting key\n    value: Setting value\n    value_type: Value type\n    description: Setting description"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HealthCheckResponse": {
+        "properties": {
+          "instance_id": {
+            "type": "string",
+            "title": "Instance Id"
+          },
+          "framework_type": {
+            "type": "string",
+            "title": "Framework Type"
+          },
+          "mode": {
+            "type": "string",
+            "title": "Mode"
+          },
+          "is_ready": {
+            "type": "boolean",
+            "title": "Is Ready"
+          },
+          "plugin_count": {
+            "type": "integer",
+            "title": "Plugin Count"
+          },
+          "plugins": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Plugins"
+          }
+        },
+        "type": "object",
+        "required": [
+          "instance_id",
+          "framework_type",
+          "mode",
+          "is_ready",
+          "plugin_count",
+          "plugins"
+        ],
+        "title": "HealthCheckResponse",
+        "description": "Health check response for single instance.\n\nAttributes:\n    instance_id: Instance ID\n    framework_type: Framework type\n    mode: Orchestration mode\n    is_ready: Whether instance is ready\n    plugin_count: Number of active plugins\n    plugins: List of plugin names"
+      },
+      "HealthResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "Overall system status",
+            "example": "healthy"
+          },
+          "postgres": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Postgres",
+            "description": "PostgreSQL status",
+            "example": "connected"
+          },
+          "redis": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Redis",
+            "description": "Redis status",
+            "example": "connected"
+          },
+          "mongodb": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mongodb",
+            "description": "MongoDB status",
+            "example": "connected"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error",
+            "description": "Error message if unhealthy"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "HealthResponse",
+        "description": "Health check response model.\n\nAttributes:\n    status: Overall system status (healthy/unhealthy)\n    postgres: PostgreSQL connection status\n    redis: Redis connection status\n    mongodb: MongoDB connection status\n    error: Error message if unhealthy",
+        "examples": [
+          {
+            "mongodb": "connected",
+            "postgres": "connected",
+            "redis": "connected",
+            "status": "healthy"
+          },
+          {
+            "error": "PostgreSQL connection failed",
+            "status": "unhealthy"
+          }
+        ]
+      },
+      "LLMConfigResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "base_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Url"
+          },
+          "additional_config": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Additional Config"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "provider",
+          "base_url",
+          "additional_config",
+          "created_at"
+        ],
+        "title": "LLMConfigResponse",
+        "description": "LLM config response (API key masked)."
+      },
+      "LoadOrchestratorRequest": {
+        "properties": {
+          "tier": {
+            "type": "string",
+            "pattern": "^(hot|warm|cold)$",
+            "title": "Tier",
+            "description": "Target tier for loading",
+            "default": "hot"
+          }
+        },
+        "type": "object",
+        "title": "LoadOrchestratorRequest",
+        "description": "Manual load orchestrator request."
+      },
+      "LoginRequest": {
+        "properties": {
+          "username": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Username",
+            "description": "Username"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Password",
+            "description": "Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "username",
+          "password"
+        ],
+        "title": "LoginRequest",
+        "description": "Login credentials.\n\nAttributes:\n    username: Account username\n    password: Plain-text password"
+      },
+      "LoginResponse": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "title": "Token"
+          }
+        },
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "title": "LoginResponse",
+        "description": "Successful login response.\n\nAttributes:\n    token: Signed JWT; use as 'Authorization: Bearer <token>'"
+      },
+      "OrchestratorResponse": {
+        "properties": {
+          "instance_id": {
+            "type": "string",
+            "title": "Instance Id"
+          },
+          "org_id": {
+            "type": "string",
+            "title": "Org Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "framework_type": {
+            "type": "string",
+            "title": "Framework Type"
+          },
+          "mode": {
+            "type": "string",
+            "title": "Mode"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "config": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Config"
+          },
+          "tier": {
+            "type": "string",
+            "title": "Tier",
+            "default": "cold"
+          },
+          "plugin_settings": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Plugin Settings",
+            "default": {}
+          },
+          "config_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Config Hash"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "instance_id",
+          "org_id",
+          "name",
+          "framework_type",
+          "mode",
+          "status",
+          "config",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "OrchestratorResponse",
+        "description": "Orchestrator instance response."
+      },
+      "OrgAccessResponse": {
+        "properties": {
+          "org_id": {
+            "type": "string",
+            "title": "Org Id"
+          },
+          "org_name": {
+            "type": "string",
+            "title": "Org Name"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          }
+        },
+        "type": "object",
+        "required": [
+          "org_id",
+          "org_name",
+          "role"
+        ],
+        "title": "OrgAccessResponse",
+        "description": "Org membership entry.\n\nAttributes:\n    org_id: Organization identifier\n    org_name: Organization display name\n    role: 'org_admin' or 'user'"
+      },
+      "OrgWithRoleResponse": {
+        "properties": {
+          "org_id": {
+            "type": "string",
+            "title": "Org Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          }
+        },
+        "type": "object",
+        "required": [
+          "org_id",
+          "name",
+          "status",
+          "created_at",
+          "role"
+        ],
+        "title": "OrgWithRoleResponse",
+        "description": "Organization response with the caller's role in that org."
+      },
+      "OrganizationResponse": {
+        "properties": {
+          "org_id": {
+            "type": "string",
+            "title": "Org Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "org_id",
+          "name",
+          "status",
+          "created_at"
+        ],
+        "title": "OrganizationResponse",
+        "description": "Organization response."
+      },
+      "PluginMetadataResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "pid": {
+            "type": "string",
+            "title": "Pid"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "tag": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tag"
+          },
+          "is_latest": {
+            "type": "boolean",
+            "title": "Is Latest"
+          },
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Capabilities"
+          },
+          "agent_type": {
+            "type": "string",
+            "title": "Agent Type"
+          },
+          "stateless": {
+            "type": "boolean",
+            "title": "Stateless"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "default_settings": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Default Settings",
+            "default": {}
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "pid",
+          "name",
+          "version",
+          "description",
+          "is_latest",
+          "capabilities",
+          "agent_type",
+          "stateless",
+          "source"
+        ],
+        "title": "PluginMetadataResponse",
+        "description": "Plugin metadata response.\n\nAttributes:\n    id: Database primary key\n    pid: Reverse-domain plugin identifier\n    name: Plugin name\n    version: Plugin version\n    description: Plugin description\n    tag: Free-form search tag\n    is_latest: Whether this is the latest version\n    capabilities: List of capabilities\n    agent_type: Agent type (specialized/general)\n    stateless: Whether plugin is stateless\n    source: Plugin source (system/org)\n    default_settings: Default settings keyed by field name"
+      },
+      "PluginSettingSchema": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "default": {
+            "title": "Default"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "required": {
+            "type": "boolean",
+            "title": "Required"
+          },
+          "sensitive": {
+            "type": "boolean",
+            "title": "Sensitive"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "type",
+          "default",
+          "description",
+          "required",
+          "sensitive"
+        ],
+        "title": "PluginSettingSchema",
+        "description": "Plugin setting schema definition."
+      },
+      "PoolStatsResponse": {
+        "properties": {
+          "total_instances": {
+            "type": "integer",
+            "title": "Total Instances"
+          },
+          "hot_tier_count": {
+            "type": "integer",
+            "title": "Hot Tier Count"
+          },
+          "warm_tier_count": {
+            "type": "integer",
+            "title": "Warm Tier Count",
+            "default": 0
+          },
+          "cold_tier_count": {
+            "type": "integer",
+            "title": "Cold Tier Count",
+            "default": 0
+          },
+          "shared_model_count": {
+            "type": "integer",
+            "title": "Shared Model Count",
+            "default": 0
+          },
+          "shared_bundle_count": {
+            "type": "integer",
+            "title": "Shared Bundle Count",
+            "default": 0
+          },
+          "memory_estimate_mb": {
+            "type": "number",
+            "title": "Memory Estimate Mb"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_instances",
+          "hot_tier_count",
+          "memory_estimate_mb"
+        ],
+        "title": "PoolStatsResponse",
+        "description": "Orchestrator pool statistics response.\n\nAttributes:\n    total_instances: Total instances in pool\n    hot_tier_count: Instances in Hot tier\n    warm_tier_count: Instances in Warm tier\n    cold_tier_count: Instances in Cold tier\n    shared_model_count: Shared model instances\n    shared_bundle_count: Shared plugin bundles\n    memory_estimate_mb: Estimated memory usage"
+      },
+      "SetTenantSettingRequest": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Key",
+            "description": "Setting key"
+          },
+          "value": {
+            "title": "Value",
+            "description": "Setting value"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "value"
+        ],
+        "title": "SetTenantSettingRequest",
+        "description": "Set org setting request."
+      },
+      "SystemPluginResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "pid": {
+            "type": "string",
+            "title": "Pid"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "tag": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tag"
+          },
+          "is_latest": {
+            "type": "boolean",
+            "title": "Is Latest"
+          },
+          "s3_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "S3 Path"
+          },
+          "default_settings": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Default Settings",
+            "default": {}
+          },
+          "capabilities": {
+            "items": {},
+            "type": "array",
+            "title": "Capabilities",
+            "default": []
+          },
+          "agent_type": {
+            "type": "string",
+            "title": "Agent Type"
+          },
+          "stateless": {
+            "type": "boolean",
+            "title": "Stateless"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "pid",
+          "version",
+          "name",
+          "is_latest",
+          "agent_type",
+          "stateless",
+          "is_active"
+        ],
+        "title": "SystemPluginResponse",
+        "description": "System plugin response model."
+      },
+      "TenantSettingResponse": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "value": {
+            "title": "Value"
+          },
+          "value_type": {
+            "type": "string",
+            "title": "Value Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "value",
+          "value_type"
+        ],
+        "title": "TenantSettingResponse",
+        "description": "Org setting response."
+      },
+      "UpdateGlobalSettingRequest": {
+        "properties": {
+          "value": {
+            "title": "Value",
+            "description": "New setting value"
+          }
+        },
+        "type": "object",
+        "required": [
+          "value"
+        ],
+        "title": "UpdateGlobalSettingRequest",
+        "description": "Update global setting request.\n\nAttributes:\n    value: New value"
+      },
+      "UpdateMembershipRequest": {
+        "properties": {
+          "is_admin": {
+            "type": "boolean",
+            "title": "Is Admin",
+            "description": "New org_admin value"
+          }
+        },
+        "type": "object",
+        "required": [
+          "is_admin"
+        ],
+        "title": "UpdateMembershipRequest",
+        "description": "Update org membership request."
+      },
+      "UpdateOrchestratorConfigRequest": {
+        "properties": {
+          "config": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Config",
+            "description": "New mutable configuration"
+          }
+        },
+        "type": "object",
+        "required": [
+          "config"
+        ],
+        "title": "UpdateOrchestratorConfigRequest",
+        "description": "Update orchestrator configuration request."
+      },
+      "UpdateOrchestratorStatusRequest": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "pattern": "^(active|suspended)$",
+            "title": "Status",
+            "description": "New status — use DELETE endpoint for soft-delete"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "UpdateOrchestratorStatusRequest",
+        "description": "Update orchestrator status request."
+      },
+      "UpdatePluginSettingsRequest": {
+        "properties": {
+          "plugin_settings": {
+            "additionalProperties": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "object",
+            "title": "Plugin Settings",
+            "description": "Map of pid -> {key: value} to merge into existing plugin_settings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "plugin_settings"
+        ],
+        "title": "UpdatePluginSettingsRequest",
+        "description": "Partial update of plugin settings."
+      },
+      "UpdateProfileRequest": {
+        "properties": {
+          "current_password": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Current Password",
+            "description": "Current password"
+          },
+          "new_password": {
+            "type": "string",
+            "minLength": 8,
+            "title": "New Password",
+            "description": "New password (min 8 chars)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "current_password",
+          "new_password"
+        ],
+        "title": "UpdateProfileRequest",
+        "description": "Self-service profile update.\n\nOnly password can be changed. Username and email are immutable via this endpoint.\n\nAttributes:\n    current_password: Current password for verification\n    new_password: New password to set"
+      },
+      "UserMembershipResponse": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "is_sys_admin": {
+            "type": "boolean",
+            "title": "Is Sys Admin"
+          },
+          "is_admin": {
+            "type": "boolean",
+            "title": "Is Admin"
+          },
+          "is_deleted": {
+            "type": "boolean",
+            "title": "Is Deleted"
+          },
+          "deleted_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deleted At"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id",
+          "username",
+          "email",
+          "is_sys_admin",
+          "is_admin",
+          "is_deleted",
+          "deleted_at",
+          "created_at"
+        ],
+        "title": "UserMembershipResponse",
+        "description": "User with membership response."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    },
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "JWT token obtained from authentication endpoint. Format: `Bearer <token>`"
+      },
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+        "description": "API key for service-to-service authentication. Format: `X-API-Key: <key>`"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "health",
+      "description": "Health check endpoints for monitoring system availability and database connectivity."
+    },
+    {
+      "name": "completion",
+      "description": "Chat endpoints for interacting with AI orchestrators. Supports both streaming (SSE) and synchronous responses."
+    },
+    {
+      "name": "orchestrators",
+      "description": "CRUD operations for managing orchestrator instances. Includes hot-reload configuration updates."
+    },
+    {
+      "name": "plugins",
+      "description": "Plugin management endpoints for discovering, uploading, and configuring plugins."
+    },
+    {
+      "name": "tenants",
+      "description": "Tenant (organization) management including settings, LLM configurations, and user management."
+    },
+    {
+      "name": "admin",
+      "description": "Administrative endpoints for platform-wide settings, health monitoring, and pool statistics. Requires admin privileges."
+    }
+  ],
+  "security": [
+    {
+      "BearerAuth": []
+    },
+    {
+      "ApiKeyAuth": []
+    }
+  ],
+  "x-rate-limit": {
+    "default": "100 requests per minute per tenant",
+    "configurable": true
+  }
+}

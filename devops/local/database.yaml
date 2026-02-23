@@ -1,0 +1,228 @@
+# Cadence Local Development - Database Stack
+# This file sets up PostgreSQL, MongoDB, and Redis for local development
+
+services:
+  # PostgreSQL - Primary relational database
+  postgres:
+    image: postgres:18.2-alpine
+    container_name: cadence-postgres-local
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: cadence_dev
+      POSTGRES_USER: cadence
+      POSTGRES_PASSWORD: cadence_dev_password
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts/postgres:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cadence -d cadence_dev"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cadence-network
+
+  # MongoDB - Per-tenant conversation storage
+  mongo:
+    image: mongo:8.0.19
+    container_name: cadence-mongo-local
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: cadence
+      MONGO_INITDB_ROOT_PASSWORD: cadence_dev_password
+      MONGO_INITDB_DATABASE: cadence_admin
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+      - mongo_config:/data/configdb
+      - ./init-scripts/mongo:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cadence-network
+
+  # Redis - Caching, pub/sub, and rate limiting
+  redis:
+    image: redis:8.6-alpine
+    container_name: cadence-redis-local
+    restart: unless-stopped
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --requirepass cadence_dev_password
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+      - ./config/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "cadence_dev_password", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cadence-network
+
+  # PostgreSQL Admin UI (pgAdmin)
+  pgadmin:
+    image: dpage/pgadmin4:8.3
+    container_name: cadence-pgadmin-local
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@cadence.local
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+      - ./config/pgadmin-servers.json:/pgadmin4/servers.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - cadence-network
+
+  # MongoDB Admin UI (Mongo Express)
+  mongo-express:
+    image: mongo-express:1.0.2-20
+    container_name: cadence-mongo-express-local
+    restart: unless-stopped
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: cadence
+      ME_CONFIG_MONGODB_ADMINPASSWORD: cadence_dev_password
+      ME_CONFIG_MONGODB_URL: mongodb://cadence:cadence_dev_password@mongo:27017/
+      ME_CONFIG_BASICAUTH_USERNAME: admin
+      ME_CONFIG_BASICAUTH_PASSWORD: admin
+      ME_CONFIG_MONGODB_ENABLE_ADMIN: 'true'
+    ports:
+      - "8081:8081"
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks:
+      - cadence-network
+
+  # Redis Admin UI (Redis Commander)
+  redis-commander:
+    image: ghcr.io/joeferner/redis-commander:latest
+    container_name: cadence-redis-commander-local
+    restart: unless-stopped
+    environment:
+      REDIS_HOSTS: local:redis:6379:0:cadence_dev_password
+      HTTP_USER: admin
+      HTTP_PASSWORD: admin
+    ports:
+      - "8082:8081"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - cadence-network
+
+  # RabbitMQ - Message broker for orchestrator events
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: cadence-rabbitmq-local
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: cadence
+      RABBITMQ_DEFAULT_PASS: cadence_dev_password
+    ports:
+      - "5672:5672"    # AMQP
+      - "15672:15672"  # Management UI
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cadence-network
+
+  # MinIO - S3-compatible object storage (plugin source of truth)
+  minio:
+    image: minio/minio:latest
+    container_name: cadence-minio-local
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: cadence
+      MINIO_ROOT_PASSWORD: cadence_dev_password
+    ports:
+      - "9000:9000"   # S3-compatible API
+      - "9001:9001"   # Web Console
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cadence-network
+
+  # MinIO init - creates cadence-plugins bucket on startup
+  minio-init:
+    image: minio/mc:latest
+    container_name: cadence-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+        mc alias set local http://minio:9000 cadence cadence_dev_password &&
+        mc mb --ignore-existing local/cadence-plugins &&
+        mc anonymous set none local/cadence-plugins
+      "
+    networks:
+      - cadence-network
+
+volumes:
+  postgres_data:
+    driver: local
+    name: cadence-postgres-data-local
+  mongo_data:
+    driver: local
+    name: cadence-mongo-data-local
+  mongo_config:
+    driver: local
+    name: cadence-mongo-config-local
+  redis_data:
+    driver: local
+    name: cadence-redis-data-local
+  pgadmin_data:
+    driver: local
+    name: cadence-pgadmin-data-local
+  minio_data:
+    driver: local
+    name: cadence-minio-data-local
+  rabbitmq_data:
+    driver: local
+    name: cadence-rabbitmq-data-local
+
+networks:
+  cadence-network:
+    name: cadence-network-local
+    driver: bridge
+
+# Connection strings for .env:
+# CADENCE_POSTGRES_URL=postgresql+asyncpg://cadence:cadence_dev_password@localhost:5432/cadence_dev
+# CADENCE_MONGO_URL=mongodb://cadence:cadence_dev_password@localhost:27017/
+# CADENCE_REDIS_URL=redis://:cadence_dev_password@localhost:6379/0
+# CADENCE_S3_ENDPOINT_URL=http://localhost:9000
+# CADENCE_S3_ACCESS_KEY_ID=cadence
+# CADENCE_S3_SECRET_ACCESS_KEY=cadence_dev_password
+# CADENCE_S3_BUCKET_NAME=cadence-plugins
+# CADENCE_PLUGIN_S3_ENABLED=true
