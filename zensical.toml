@@ -1,0 +1,91 @@
+[project]
+site_name = "Cadence Multi-agents AI Framework"
+site_description = "A plugin-based Multi-Tenant, Multi-Orchestrator AI Agent Platform"
+site_author = "Jonas Kahn"
+site_url = "https://jonaskahn.github.io/cadence"
+docs_dir = "docs"
+
+nav = [
+    { "Home" = "index.md" },
+    { "User Guide" = [
+        { "Features" = "guide/features.md" },
+        { "Glossary" = "guide/glossary.md" },
+        { "Roles & Permissions" = "guide/roles.md" },
+        { "Workflows" = [
+            { "System Admin Onboarding" = "guide/workflows/sys-admin.md" },
+            { "Org Admin Setup" = "guide/workflows/org-admin.md" },
+            { "Chat with an Agent" = "guide/workflows/chat.md" },
+            { "Upload a Plugin" = "guide/workflows/plugins.md" },
+        ] },
+    ] },
+    { "Testing" = [
+        { "Test Scenarios" = "guide/testing/scenarios.md" },
+        { "Error Reference" = "guide/testing/errors.md" },
+    ] },
+    { "Technical Reference" = [
+        { "Backend" = [
+            { "Overview" = "backend/index.md" },
+            { "Application Startup" = "backend/startup.md" },
+            { "Authentication & Sessions" = "backend/auth.md" },
+            { "Chat & Streaming" = "backend/chat.md" },
+            { "Orchestrator Lifecycle" = "backend/orchestrator-lifecycle.md" },
+            { "Plugin System" = "backend/plugins.md" },
+            { "Configuration Cascade" = "backend/configuration.md" },
+            { "Tenant & Admin Management" = "backend/admin.md" },
+        ] },
+        { "Frontend" = [
+            { "Overview" = "frontend/index.md" },
+            { "Auth Flow" = "frontend/auth.md" },
+            { "Chat Interface" = "frontend/chat.md" },
+            { "Orchestrator Management" = "frontend/orchestrators.md" },
+            { "Admin Panel" = "frontend/admin.md" },
+        ] },
+        { "SDK" = [
+            { "Overview" = "sdk/index.md" },
+            { "Building a Plugin" = "sdk/plugin-development.md" },
+            { "Creating Tools" = "sdk/tools.md" },
+            { "Plugin Settings" = "sdk/settings.md" },
+            { "Plugin Discovery & Bundling" = "sdk/discovery.md" },
+        ] },
+    ] },
+]
+
+[project.theme]
+variant = "modern"
+language = "en"
+features = [
+    "announce.dismiss",
+    "content.code.annotate",
+    "content.code.copy",
+    "content.code.select",
+    "content.footnote.tooltips",
+    "content.tabs.link",
+    "content.tooltips",
+    "navigation.footer",
+    "navigation.indexes",
+    "navigation.instant",
+    "navigation.instant.prefetch",
+    "navigation.path",
+    "navigation.sections",
+    "navigation.top",
+    "navigation.tracking",
+    "search.highlight",
+]
+
+[[project.theme.palette]]
+scheme = "default"
+toggle.icon = "lucide/sun"
+toggle.name = "Switch to dark mode"
+
+[[project.theme.palette]]
+scheme = "slate"
+toggle.icon = "lucide/moon"
+toggle.name = "Switch to light mode"
+
+[[project.extra.social]]
+icon = "fontawesome/brands/github"
+link = "https://github.com/jonaskahn/cadence"
+
+[[project.extra.social]]
+icon = "fontawesome/brands/twitter"
+link = "https://twitter.com/jonaskahn"
